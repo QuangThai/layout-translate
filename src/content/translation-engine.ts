@@ -141,11 +141,17 @@ export class PageTranslationEngine {
     if (!this.enabled || this.translating || this.stopped) return;
     this.translating = true;
     try {
+      const recordCountBeforeCollect = this.records.size;
       await this.collectRecords();
       const pending = [...this.records.values()].filter(
         (record) => record.translatedTarget !== this.targetLanguage,
       );
-      if (pending.length === 0) return;
+      if (pending.length === 0) {
+        if (this.records.size !== recordCountBeforeCollect) {
+          await this.reportStatus("rendered", this.records.size);
+        }
+        return;
+      }
       await this.reportStatus("translating", this.records.size);
       const results = await mockTranslateBatch(
         pending.map((record) => ({
@@ -176,6 +182,10 @@ export class PageTranslationEngine {
   }
 
   private async collectRecords(): Promise<void> {
+    for (const record of [...this.records.values()]) {
+      if (!record.node.isConnected || !record.element.isConnected) this.removeRecord(record);
+    }
+
     const walker = this.root.createTreeWalker(this.root.body, NodeFilter.SHOW_TEXT);
     const nodes: Text[] = [];
     let current: Node | null = walker.nextNode();
@@ -257,6 +267,16 @@ export class PageTranslationEngine {
       return;
     }
 
+    if (record.mode === "critical") {
+      record.element.style.overflow = "hidden";
+      record.element.style.textOverflow = "ellipsis";
+      record.element.style.whiteSpace = "nowrap";
+      record.element.title = record.translation.full;
+      record.displayedText = record.translation.full;
+      record.fallback = "ellipsis-tooltip";
+      return;
+    }
+
     this.setNodeText(record, record.translation.compact);
     if (!hasOverflow(measureElement(record.element))) {
       record.displayedText = record.translation.compact;
@@ -274,7 +294,7 @@ export class PageTranslationEngine {
   }
 
   private preserveHardRegion(record: SourceRecord): void {
-    if (record.mode !== "hard" || !record.beforeGeometry || record.beforeGeometry.width <= 0) return;
+    if (!(record.mode === "hard" || record.mode === "critical") || !record.beforeGeometry || record.beforeGeometry.width <= 0) return;
 
     const width = `${record.beforeGeometry.width}px`;
     const computed = window.getComputedStyle(record.element);
@@ -298,8 +318,12 @@ export class PageTranslationEngine {
     this.restorePresentation(record);
     this.records.delete(record.anchorId);
     this.recordByNode.delete(record.node);
-    this.recordByElementSlot.get(record.element)?.delete(record.slot);
-    this.sourceByElementSlot.get(record.element)?.delete(record.slot);
+    const recordsForElement = this.recordByElementSlot.get(record.element);
+    recordsForElement?.delete(record.slot);
+    if (recordsForElement?.size === 0) this.recordByElementSlot.delete(record.element);
+    const sourcesForElement = this.sourceByElementSlot.get(record.element);
+    sourcesForElement?.delete(record.slot);
+    if (sourcesForElement?.size === 0) this.sourceByElementSlot.delete(record.element);
   }
 
   private restorePresentation(record: SourceRecord): void {

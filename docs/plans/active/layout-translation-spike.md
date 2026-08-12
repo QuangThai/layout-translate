@@ -74,11 +74,17 @@ Out of scope:
 - [x] Inventory installed skills and available development tools.
 - [x] Create the derived MVP product contract.
 - [x] Establish architecture boundary document.
-- [ ] Resolve decision-required product and security policy.
+- [ ] Resolve remaining decision-required product policy (visual tolerance,
+  provider model, and future domain/cache behavior).
 - [x] Scaffold fixture-only extension and mock backend boundary.
 - [x] Add representative fixtures and deterministic mock-adapter proof.
 - [x] Add browser-level geometry, tooltip, dynamic DOM, and SPA proof.
 - [x] Make the browser proof replayable with `npm run e2e:smoke`.
+- [x] Preserve semantic-critical full text and prune disconnected DOM records.
+- [x] Draft the proposed MVP translation data/security boundary decision record.
+- [x] Accept the MVP translation data/security boundary decision record.
+- [x] Add mock-backend contract validation for auth, allowlist, bounded
+  payloads, protected-content denial, rate limiting, and response correlation.
 - [ ] Validate the technical-spike exit gate.
 
 ## Decisions
@@ -111,11 +117,27 @@ Out of scope:
 - Replayable smoke: `npm run e2e:smoke` passed with Chrome for Testing. It
   measured `navWidth=270` in EN and VI, rendered constrained tooltip titles,
   translated the SPA replacement, and restored the current Japanese source.
-- Latest browser rerun: after the engine fix, EN and VI both kept the
-  navigation group at `270px` with the first anchor at `x=692.4px`; constrained
-  strings exposed tooltip titles; a fresh-load SPA transition translated the
-  current dynamic source in both languages; restore returned the current
-  Japanese source; and no page errors or console errors were reported.
+- Critical/pruning regression proof: the constrained `data-semantic-critical`
+  action kept full EN (`Review and send`) and VI (`Xem lại và gửi`) text while
+  exposing each through a tooltip; removing that action after translation
+  reduced the reported translated-anchor count by one.
+- Policy gate: baseline recorded in
+  [`docs/decisions/0001-mvp-translation-data-security-boundary.md`](../../decisions/0001-mvp-translation-data-security-boundary.md).
+  It is now `Accepted` for MVP; real provider integration remains blocked on
+  implementation of the listed backend controls and the separate model
+  benchmark.
+- Backend contract proof: `npm test` covers seven contract/runtime assertions;
+  replayable `npm run backend:smoke` returned `200` for an authorized
+  allowlisted request, `401` without authorization, `403` for a disallowed
+  page origin, and `422` for protected content. No provider call or durable
+  content storage was introduced.
+- Smoke harness reliability: the runner explicitly activates the fixture tab
+  before using the popup so background active-tab routing is deterministic;
+  `npm run e2e:smoke` passed after that change.
+- Latest replayable browser rerun: EN and VI both kept the navigation group at
+  `270px` with the first anchor at `x=805.5px`; constrained strings exposed
+  tooltip titles; a fresh-load SPA transition translated the current dynamic
+  source in both languages; and restore returned the current Japanese source.
 - Character-data regression proof: changing the existing dynamic text node in
   place with `node.data = "新しい通知"` translated it to `New notification`,
   and restore returned that current source to Japanese.

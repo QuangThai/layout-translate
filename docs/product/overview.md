@@ -80,19 +80,19 @@ The technical spike must produce repeatable evidence for:
 - Ask Atlas until its product meaning is explicitly defined.
 - A customer-facing general website translation CLI.
 
-## Decisions required before implementation policy is frozen
+## Remaining decisions before implementation policy is frozen
 
-The following items remain open in `SPEC.md` and must not be invented by an
-implementation default:
+The table below tracks the remaining policy gates and must not be filled by an
+implementation default. The accepted MVP data/security boundary is recorded in
+[`docs/decisions/0001-mvp-translation-data-security-boundary.md`](../decisions/0001-mvp-translation-data-security-boundary.md).
 
 | Topic | Current status |
 |---|---|
 | Exact visual tolerance | Decision required; calibrate with representative fixtures |
-| Allowed domains and data sent to the backend | Decision required; company security approval |
-| PII/sensitive-data masking | Decision required |
-| Persistent backend caching and retention | Decision required |
+| Allowed domains and data sent to the backend | Decided for MVP; explicit allowlist and minimized payload |
+| PII/sensitive-data masking | Decided for MVP; mask or deny server-side, fail closed when uncertain |
+| Persistent backend caching and retention | Decided for MVP; no durable source/translation content retention |
 | Exact OpenAI model | Decision required; benchmark first |
-| Browser targets beyond Chrome/Edge Chromium | Decision required |
+| Browser targets beyond Chrome/Edge Chromium | Decision required; MVP is Chrome/Edge Chromium |
 | Domain-level persistence | Optional later; no MVP policy beyond same tab/session |
 | Ask Atlas behavior | Not in MVP; separate product definition required |
-

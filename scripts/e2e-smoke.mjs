@@ -225,14 +225,15 @@ async function main() {
       url: `http://127.0.0.1:${fixturePort}${fixturePath}`,
     });
     fixture = await attachTarget(cdp, fixtureTarget.targetId);
-    await waitFor(
-      () => evaluate(cdp, fixture, "Boolean(document.querySelector('nav a'))"),
-      "fixture content",
-    );
-    popup = await findExtensionPopup(cdp);
+      await waitFor(
+        () => evaluate(cdp, fixture, "Boolean(document.querySelector('nav a'))"),
+        "fixture content",
+      );
+      popup = await findExtensionPopup(cdp);
 
-    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
-    await waitFor(
+      await cdp.call("Target.activateTarget", { targetId: fixture.targetId });
+      await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+      await waitFor(
       () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Company'"),
       "English translation",
     );
@@ -243,11 +244,20 @@ async function main() {
         navWidth: document.querySelector('nav')?.getBoundingClientRect().width,
         firstAnchor: document.querySelector('nav a')?.getBoundingClientRect().x,
         nav: [...document.querySelectorAll('nav a')].map((element) => element.textContent),
+        critical: {
+          text: document.querySelector('#route-button')?.textContent,
+          title: document.querySelector('#route-button')?.title,
+          clientWidth: document.querySelector('#route-button')?.clientWidth,
+          scrollWidth: document.querySelector('#route-button')?.scrollWidth,
+        },
         tooltips: [...document.querySelectorAll('[title]')].map((element) => element.title),
       }))()`,
     );
     assert(english.nav.join("|") === "Company|Contact us|Terms", "English navigation rendered");
     assert(english.navWidth > 0, "English navigation geometry was measured");
+    assert(english.critical.text === "Review and send", "semantic-critical action keeps its full English translation");
+    assert(english.critical.title === "Review and send", "semantic-critical overflow exposes the full English translation");
+    assert(english.critical.scrollWidth > english.critical.clientWidth, "semantic-critical action is actually constrained");
     assert(english.tooltips.length > 0, "constrained content exposes full-text tooltips");
 
     await evaluate(cdp, popup, "document.querySelector('.language-switch button:nth-child(2)').click()");
@@ -258,15 +268,37 @@ async function main() {
     const vietnamese = await evaluate(
       cdp,
       fixture,
-      "({ navWidth: document.querySelector('nav')?.getBoundingClientRect().width, nav: [...document.querySelectorAll('nav a')].map((element) => element.textContent) })",
+      "({ navWidth: document.querySelector('nav')?.getBoundingClientRect().width, nav: [...document.querySelectorAll('nav a')].map((element) => element.textContent), critical: { text: document.querySelector('#route-button')?.textContent, title: document.querySelector('#route-button')?.title } })",
     );
     assert(vietnamese.nav.join("|") === "Thông tin công ty|Liên hệ với chúng tôi|Điều khoản", "Vietnamese navigation rendered");
     assert(vietnamese.navWidth === english.navWidth, "hard-preserve navigation width stayed stable");
+    assert(vietnamese.critical.text === "Xem lại và gửi", "semantic-critical action keeps its full Vietnamese translation");
+    assert(vietnamese.critical.title === "Xem lại và gửi", "semantic-critical overflow exposes the full Vietnamese translation");
 
     await evaluate(cdp, fixture, "document.querySelector('#route-button').click()");
     await waitFor(
       () => evaluate(cdp, fixture, "document.querySelector('#dynamic-copy')?.textContent === 'Thông báo mới'"),
       "translated SPA content",
+    );
+    const getExtensionState = () => evaluate(
+      cdp,
+      popup,
+      "chrome.storage.local.get('layout-translate:state').then((value) => value['layout-translate:state'])",
+    );
+    const stateBeforeRemoval = await waitFor(
+      async () => {
+        const state = await getExtensionState();
+        return state?.status === "rendered" && state.translatedAnchors > 0 ? state : false;
+      },
+      "rendered anchor state",
+    );
+    await evaluate(cdp, fixture, "document.querySelector('#route-button')?.remove()");
+    const stateAfterRemoval = await waitFor(
+      async () => {
+        const state = await getExtensionState();
+        return state?.translatedAnchors < stateBeforeRemoval.translatedAnchors ? state : false;
+      },
+      "disconnected source record cleanup",
     );
 
     await evaluate(cdp, popup, "document.querySelector('button.restore-button').click()");
@@ -290,6 +322,7 @@ async function main() {
       vietnamese,
       dynamicSpa: "translated and restored",
       originalRestored: true,
+      removedAnchors: stateBeforeRemoval.translatedAnchors - stateAfterRemoval.translatedAnchors,
     }, null, 2));
   } finally {
     if (popup) await cdp?.call("Target.closeTarget", { targetId: popup.targetId }).catch(() => undefined);

@@ -64,6 +64,13 @@ Owns server-side translation boundaries:
 - structured-response validation;
 - response correlation back to source anchor IDs.
 
+The current mock boundary implements the request-side version of these
+controls in [`backend/src/contract.ts`](../backend/src/contract.ts) and
+`backend/src/mock-server.ts`: explicit page-origin allowlisting, bearer
+authentication, bounded payloads, fail-closed protected-content checks,
+rate limiting, and provider-result correlation. It is still a local mock and
+is not production authentication or PII classification.
+
 The OpenAI credential is backend-only and must never be bundled into the
 extension.
 
@@ -144,10 +151,8 @@ plan.
 ## Unresolved architecture-adjacent choices
 
 - Backend authentication/session contract.
-- Domain allowlist and data-class policy.
-- Mandatory masking rules for sensitive text.
 - Provider model and structured output schema version.
-- Translation cache ownership and retention.
+- Translation cache ownership and any retention expansion beyond the accepted
+  no-durable-content MVP boundary.
 - Exact geometry tolerance and measurement timing.
 - Browser targets beyond Chromium MV3.
-

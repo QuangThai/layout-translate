@@ -33,6 +33,7 @@ h2 { font-size: 19px; margin-bottom: 14px; }
 .primary-action, .secondary-action { border: 0; border-radius: 3px; cursor: pointer; font-weight: 800; }
 .primary-action { background: #b94f3b; color: #fff8f0; padding: 13px 20px; white-space: nowrap; }
 .secondary-action { background: #25333a; color: #fff8f0; padding: 10px 14px; white-space: nowrap; }
+#route-button { overflow: hidden; padding: 10px 8px; width: 112px; }
 .tabs { border-bottom: 1px solid #d9d0c4; display: flex; gap: 22px; margin-top: 58px; }
 .tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: #768086; cursor: pointer; padding: 12px 0; }
 .tab.is-active { border-color: #b94f3b; color: #25333a; font-weight: 800; }

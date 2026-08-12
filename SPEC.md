@@ -769,8 +769,8 @@ Every significant spec item should use one of these statuses:
 | Exact acceptable layout tolerance | HYPOTHESIS | Calibrate in spike |
 | Best DOM mutation strategy for React/Vue | HYPOTHESIS | Must test on real projects |
 | Best EN/VI model | HYPOTHESIS | Benchmark |
-| Persistent server-side translation cache | OPEN | Security/retention decision |
-| Sending internal/PII page content to model | OPEN | Requires company policy/security approval |
+| Persistent server-side translation cache | DECIDED | No durable source/translation cache or content logs in MVP; any bounded in-memory reuse requires a separate decision |
+| Sending internal/PII page content to model | DECIDED | Explicit domain allowlist, minimized payload, and fail-closed masking/denial boundary; see `docs/decisions/0001-mvp-translation-data-security-boundary.md` |
 | Ask Atlas behavior | OPEN | Not defined in current product requirements |
 
 ---
@@ -1195,10 +1195,24 @@ The exact threshold must be calibrated against real company pages.
 
 #### OQ-02 — Security/data approval
 
-- Which internal domains are allowed?
-- Which content may be sent to OpenAI?
-- Is PII masking mandatory before all requests?
-- Is persistent backend caching allowed?
+**Status: RESOLVED FOR MVP.**
+
+The accepted MVP boundary is recorded in
+[`docs/decisions/0001-mvp-translation-data-security-boundary.md`](docs/decisions/0001-mvp-translation-data-security-boundary.md):
+
+- production translation uses an explicit organization/domain allowlist;
+- requests contain only source strings and minimum anchor/component/language
+  metadata, not the full DOM or screenshots;
+- protected credential/payment/secret fields are denied, while PII/sensitive
+  text is masked or denied server-side and uncertain classification fails
+  closed;
+- raw source/translation content is not durably cached or written to
+  operational logs in the MVP;
+- backend authentication, authorization, limits, validation, and provider
+  timeout/correlation controls are mandatory.
+
+The exact provider model and any future retention/cache expansion remain
+separate decisions.
 
 #### OQ-03 — Exact OpenAI model
 
