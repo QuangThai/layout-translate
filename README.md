@@ -35,9 +35,16 @@ websites during this spike.
 npm run typecheck
 npm test
 npm run build
+npm run e2e:smoke
 ```
 
-These commands are defined but have not been run in the scaffold phase.
+`npm run e2e:smoke` rebuilds the extension, starts an isolated fixture server,
+launches Chrome for Testing with the unpacked MV3 bundle, and exercises popup
+ON, English/Vietnamese switching, hard-region geometry, constrained tooltips,
+SPA content replacement, and restore. Run `agent-browser install` once to
+install the managed browser, or set `LAYOUT_TRANSLATE_CHROME` to an equivalent
+Chrome for Testing binary. The runner uses Node's built-in WebSocket client and
+therefore requires Node 22 or newer.
 
 ## Mock backend
 

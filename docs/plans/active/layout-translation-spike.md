@@ -18,8 +18,8 @@ choices explicit.
 - Product authority: [`SPEC.md`](../../../SPEC.md).
 - Derived MVP contract: [`docs/product/overview.md`](../../product/overview.md).
 - Repository workflow: [`docs/WORKFLOW.md`](../../WORKFLOW.md).
-- Current repository has no application source, package manifest, tests, or
-  runtime runbook.
+- The repository now contains the fixture-first extension scaffold, focused
+  tests, mock backend boundary, and a replayable browser smoke command.
 
 ## Scope
 
@@ -78,6 +78,7 @@ Out of scope:
 - [x] Scaffold fixture-only extension and mock backend boundary.
 - [x] Add representative fixtures and deterministic mock-adapter proof.
 - [x] Add browser-level geometry, tooltip, dynamic DOM, and SPA proof.
+- [x] Make the browser proof replayable with `npm run e2e:smoke`.
 - [ ] Validate the technical-spike exit gate.
 
 ## Decisions
@@ -107,6 +108,9 @@ Out of scope:
   `利用規約 -> 新しい通知` was incorrectly treated as the old source and
   rendered/restored as `利用規約`.
 - Repository-required checks: no additional repository CI gate exists yet.
+- Replayable smoke: `npm run e2e:smoke` passed with Chrome for Testing. It
+  measured `navWidth=270` in EN and VI, rendered constrained tooltip titles,
+  translated the SPA replacement, and restored the current Japanese source.
 - Latest browser rerun: after the engine fix, EN and VI both kept the
   navigation group at `270px` with the first anchor at `x=692.4px`; constrained
   strings exposed tooltip titles; a fresh-load SPA transition translated the

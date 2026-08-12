@@ -8,7 +8,6 @@ Start with the smallest authoritative surface.
   completion.
 - `architecture.md`: current extension component, data-flow, state, and
   ownership boundaries.
-- `HARNESS.md`: product principles and installed-core model.
 - `product/`: current product behavior and installation contract.
 - `decisions/`: lasting choices future work must inherit.
 - `plans/`: one durable working-memory document for work that needs it.
@@ -23,15 +22,11 @@ not overwrite those with upstream product assumptions.
 
 ## Source Repository
 
-- Root `README.md`: product overview, installation, maintenance, EOL, and
-  development.
-- `crates/harness/`: safe core installer/updater.
-- `scripts/`: platform bootstrap, release, and validation entrypoints.
-- `tests/`: behavior ownership and repository contract.
+- Root `README.md`: current scope, development, checks, and mock-backend usage.
+- `SPEC.md`: product authority and unresolved decisions.
+- `src/`, `entrypoints/`, and `backend/`: extension and mock-backend code.
+- `fixtures/`: representative browser fixture and styles.
+- `tests/` and `scripts/e2e-smoke.mjs`: focused and browser-level proof.
 
-## History
-
-The former SQLite control plane, protocol v1, story packets, migration evidence,
-and compatibility documentation are preserved by Git history and immutable
-`harness-cli-v*` tags. They are intentionally absent from the current tree so
-search and agent retrieval return current product authority.
+Harness instructions and installed-core metadata live in `AGENTS.md` and
+`.harness-core/`; they do not define consumer product behavior.

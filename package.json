@@ -9,6 +9,7 @@
     "zip": "wxt zip",
     "typecheck": "wxt prepare && tsc --noEmit",
     "test": "vitest run --environment node",
+    "e2e:smoke": "npm run build && node scripts/e2e-smoke.mjs",
     "backend:mock": "tsx backend/src/mock-server.ts"
   },
   "dependencies": {
