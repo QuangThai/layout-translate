@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Layout Translate Fixture</title>
+    <link rel="stylesheet" href="./representative.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">Atlas Fixture</div>
+      <nav aria-label="Primary navigation">
+        <a href="#company">会社情報</a>
+        <a href="#contact">お問い合わせはこちら</a>
+        <a href="#terms">利用規約</a>
+      </nav>
+    </header>
+
+    <main class="page-shell">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="section-label">TRANSLATION SPIKE</p>
+          <h1 id="page-title">会社情報</h1>
+          <p class="lede">長い説明テキストです。</p>
+        </div>
+        <button class="primary-action" type="button">保存する</button>
+      </section>
+
+      <section class="tabs" aria-label="Fixture sections">
+        <button class="tab is-active" type="button" role="tab">進捗状況</button>
+        <button class="tab" type="button" role="tab">担当者</button>
+        <button class="tab" type="button" role="tab">詳細を見る</button>
+      </section>
+
+      <section class="content-grid">
+        <article class="card" data-card>
+          <span class="badge" data-badge>新しい通知</span>
+          <h2>説明文</h2>
+          <p>長い説明テキストです。</p>
+          <button class="secondary-action" type="button">詳細を見る</button>
+        </article>
+
+        <article class="card table-card" data-card>
+          <h2>進捗状況</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>担当者</th>
+                <th>進捗状況</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>会社情報</td>
+                <td><span class="badge" data-badge>新しい通知</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </article>
+      </section>
+
+      <section class="dynamic-panel" aria-live="polite">
+        <div>
+          <p class="section-label">DYNAMIC DOM</p>
+          <p id="dynamic-copy">利用規約</p>
+        </div>
+        <button id="route-button" class="secondary-action" type="button">確認して送信</button>
+      </section>
+    </main>
+
+    <script>
+      const dynamicCopy = document.querySelector("#dynamic-copy");
+      const routeButton = document.querySelector("#route-button");
+      routeButton?.addEventListener("click", () => {
+        history.pushState({}, "", "#review");
+        if (dynamicCopy) dynamicCopy.textContent = "新しい通知";
+      });
+    </script>
+  </body>
+</html>

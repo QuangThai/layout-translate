@@ -1,0 +1,52 @@
+:root {
+  color: #25333a;
+  background: #f7f3ec;
+  font-family: "Yu Gothic", "Hiragino Kaku Gothic ProN", sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; }
+
+.site-header {
+  align-items: center;
+  border-bottom: 1px solid #d9d0c4;
+  display: flex;
+  gap: 28px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 960px;
+  padding: 22px 28px;
+}
+
+nav { display: flex; gap: 18px; white-space: nowrap; }
+nav a { font-size: 13px; }
+.brand { font-weight: 800; letter-spacing: 0.08em; }
+.page-shell { margin: 0 auto; max-width: 960px; padding: 52px 28px 80px; }
+.hero { align-items: end; display: flex; justify-content: space-between; gap: 28px; }
+.section-label { color: #b35d47; font-size: 10px; font-weight: 800; letter-spacing: .16em; margin: 0 0 12px; }
+h1, h2, p { margin-top: 0; }
+h1 { font-family: Georgia, serif; font-size: clamp(38px, 7vw, 72px); font-weight: 500; letter-spacing: -.05em; margin-bottom: 14px; }
+h2 { font-size: 19px; margin-bottom: 14px; }
+.lede { color: #68757a; line-height: 1.8; max-width: 48ch; }
+.primary-action, .secondary-action { border: 0; border-radius: 3px; cursor: pointer; font-weight: 800; }
+.primary-action { background: #b94f3b; color: #fff8f0; padding: 13px 20px; white-space: nowrap; }
+.secondary-action { background: #25333a; color: #fff8f0; padding: 10px 14px; white-space: nowrap; }
+.tabs { border-bottom: 1px solid #d9d0c4; display: flex; gap: 22px; margin-top: 58px; }
+.tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: #768086; cursor: pointer; padding: 12px 0; }
+.tab.is-active { border-color: #b94f3b; color: #25333a; font-weight: 800; }
+.content-grid { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 28px; }
+.card { background: #fffdf8; border: 1px solid #ded5c9; min-width: 0; padding: 24px; }
+.card p { color: #68757a; line-height: 1.7; }
+.badge { background: #f0d7c9; border-radius: 999px; color: #94422f; display: inline-block; font-size: 11px; font-weight: 800; margin-bottom: 20px; padding: 6px 10px; white-space: nowrap; }
+table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+th, td { border-bottom: 1px solid #e2d9ce; font-size: 12px; overflow: hidden; padding: 12px 8px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.dynamic-panel { align-items: center; border-top: 1px solid #d9d0c4; display: flex; justify-content: space-between; margin-top: 28px; padding-top: 22px; }
+.dynamic-panel p { margin-bottom: 0; }
+
+@media (max-width: 700px) {
+  .site-header, .hero, .dynamic-panel { align-items: flex-start; flex-direction: column; }
+  nav { flex-wrap: wrap; white-space: normal; }
+  .content-grid { grid-template-columns: 1fr; }
+}
