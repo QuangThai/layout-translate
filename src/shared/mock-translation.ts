@@ -1,12 +1,12 @@
 import type { TargetLanguage, TranslationRequest, TranslationResult } from "./contracts";
 
-interface MockEntry {
+export interface MockTranslationEntry {
   en: string;
   vi: string;
   compact?: Partial<Record<TargetLanguage, string>>;
 }
 
-const MOCK_DICTIONARY: Record<string, MockEntry> = {
+const MOCK_DICTIONARY: Record<string, MockTranslationEntry> = {
   会社情報: { en: "Company", vi: "Thông tin công ty" },
   お問い合わせはこちら: {
     en: "Contact us",
@@ -19,7 +19,11 @@ const MOCK_DICTIONARY: Record<string, MockEntry> = {
   担当者: { en: "Owner", vi: "Người phụ trách", compact: { vi: "Phụ trách" } },
   進捗状況: { en: "Status", vi: "Tiến độ" },
   説明文: { en: "Description", vi: "Mô tả" },
-  新しい通知: { en: "New notification", vi: "Thông báo mới" },
+  新しい通知: {
+    en: "New notification",
+    vi: "Thông báo mới",
+    compact: { en: "New", vi: "Mới" },
+  },
   確認して送信: {
     en: "Review and send",
     vi: "Xem lại và gửi",
@@ -28,6 +32,7 @@ const MOCK_DICTIONARY: Record<string, MockEntry> = {
   "長い説明テキストです。": {
     en: "This is a longer description that should remain readable while the surrounding card stays coherent.",
     vi: "Đây là phần mô tả dài cần giữ khả năng đọc trong khi bố cục thẻ vẫn nhất quán.",
+    compact: { en: "Long description", vi: "Mô tả dài" },
   },
 };
 

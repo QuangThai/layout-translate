@@ -9,9 +9,10 @@ visual anchor.
 - WXT + TypeScript + React popup.
 - MV3 background service worker and content script.
 - Localhost-only host permissions for the representative fixture.
-- Deterministic in-process mock translation adapter.
-- No OpenAI call, credentials, page-data upload, or production backend yet.
-- Mock backend contract available at `backend/src/mock-server.ts`.
+- Deterministic mock backend translation adapter for browser proof.
+- No OpenAI call or production provider integration yet.
+- The extension vertical slice uses the local mock backend through the service
+  worker; backend contract is available at `backend/src/mock-server.ts`.
 
 The product contract and unresolved policy choices live in
 [`docs/product/overview.md`](docs/product/overview.md). The technical
@@ -36,22 +37,84 @@ npm run typecheck
 npm test
 npm run build
 npm run e2e:smoke
+npm run calibration:smoke
 ```
 
 `npm run e2e:smoke` rebuilds the extension, starts an isolated fixture server,
 launches Chrome for Testing with the unpacked MV3 bundle, and exercises popup
 ON, English/Vietnamese switching, hard-region geometry, constrained tooltips,
-SPA content replacement, and restore. Run `agent-browser install` once to
-install the managed browser, or set `LAYOUT_TRANSLATE_CHROME` to an equivalent
-Chrome for Testing binary. The runner uses Node's built-in WebSocket client and
-therefore requires Node 22 or newer.
+keyboard focus, delayed-font readiness, framework-style DOM replacement, SPA
+content replacement, screenshots, and restore. Run `agent-browser install` once
+to install the managed browser, or set `LAYOUT_TRANSLATE_CHROME` to an
+equivalent Chrome for Testing binary. The runner builds a small real React 19
+and Vue 3 fixture bundle before launching Chrome. It uses Node's built-in
+WebSocket client and therefore requires Node 22 or newer. It writes a
+non-content report to `.output/e2e-smoke-report.json` and screenshots to
+`.output/e2e-english.png` and `.output/e2e-vietnamese.png`; set
+`LAYOUT_TRANSLATE_E2E_REPORT` or `LAYOUT_TRANSLATE_E2E_ARTIFACT_DIR` to choose
+different CI artifact paths. Before the run, the runner removes only its
+owned report/screenshots. The report records content-free source/artifact
+fingerprints, opaque backend request IDs, and process/server/profile cleanup;
+browser diagnostics are counts/codes rather than raw page messages.
+
+The repository CI workflow runs typecheck, unit/contract tests, the extension
+build, the React/Vue fixture build, backend contract smoke, and the offline
+translation benchmark contract. Browser E2E
+remains a separate local or environment-specific check because it requires a
+Chrome for Testing binary.
+
+`npm run calibration:smoke` runs three local layout archetypes (intrinsic flex,
+grid/table, and long-form content) at desktop and mobile viewports. It records
+non-content geometry/error metrics in `.output/calibration-report.json` and
+per-case screenshots under `.output/calibration/`. The `5px` hard-shift gate is
+applied only to the desktop calibration cases and remains a provisional spike
+target, not a production SLA. Real company-page calibration still requires a
+reviewed corpus supplied by the product team. Each run removes only its owned
+report/screenshots first and records content-free provenance, artifact status,
+diagnostic counts/codes, and cleanup status. Each screenshot capture has up to
+two bounded retries with a short backoff and removes its owned path before each
+attempt; `artifactStatus: "complete"` means every requested screenshot was
+captured in that run. Screenshot capture remains optional artifact proof, so a
+transient partial artifact report does not weaken the geometry gate. A non-zero
+exit means the audit
+found a real provisional-gate violation; it must not be “fixed” by raising the
+threshold without a documented product decision.
+
+`npm run real-corpus:preflight` validates the approved snapshot contract
+without starting Chrome or making network calls. It intentionally fails while
+`fixtures/real-corpus/manifest.json` is `pending-review` or required snapshot
+files are absent. Use `--mode=baseline` for geometry-only validation, or
+`--mode=translation`/`--mode=both` when the manifest also contains
+human-reviewed `calibration.translationCases` and `calibration.translationReview`.
+The manifest's named measurement targets provide anchor/sibling selectors and
+an explicit desktop hard-gate flag; each viewport also declares whether page
+overflow is a hard gate or measurement-only. These contracts do not choose a
+production tolerance by themselves.
+
+`npm run real-corpus:calibration -- --mode=baseline` runs the approved snapshot
+through a local-only browser replay and records geometry plus screenshots. Use
+`--mode=translation` to run the extension against the local deterministic mock
+backend with the manifest's reviewed EN/VI references, or `--mode=both` to run
+both passes. The command always runs preflight first and writes a fail-closed
+report to `.output/real-corpus-calibration-report.json`; the checked-in sample
+therefore stops before Chrome because it has no product approval. Translation
+overrides are generated in a temporary profile and are never sent to a real
+provider.
 
 ## Mock backend
 
-```bash
+Configure the local boundary explicitly before starting the development-only
+server:
+
+```powershell
+$env:LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN = "dev-only-token"
+$env:LAYOUT_TRANSLATE_ALLOWED_ORIGINS = "http://127.0.0.1:4173"
 npm run backend:mock
 ```
 
 The mock server listens on `http://127.0.0.1:8787` and accepts the structured
-translation request described in `backend/README.md`. It is development-only;
-it has no authentication, persistence, rate limit, or sensitive-data policy.
+translation request described in `backend/README.md`. It is development-only,
+but its request boundary exercises bearer authentication, origin allowlisting,
+bounded payloads, rate limiting, protected-content denial, and response
+correlation. It does not call OpenAI or provide production security guarantees.
+Replay the boundary proof with `npm run backend:smoke`.

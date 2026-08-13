@@ -1,0 +1,123 @@
+{
+  "schema": "layout-translate/translation-benchmark-cases/v1",
+  "status": "synthetic-draft",
+  "purpose": "Compare Japanese-to-English/Vietnamese model outputs for semantic and layout-aware translation.",
+  "referencePolicy": "References are evaluator prompts, not automatic truth. Human review is required before using quality scores for model selection.",
+  "cases": [
+    {
+      "id": "nav-company",
+      "source": "会社情報",
+      "component": "navigation",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Company", "vi": "Thông tin công ty" }
+    },
+    {
+      "id": "nav-contact",
+      "source": "お問い合わせはこちら",
+      "component": "navigation",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Contact us", "vi": "Liên hệ với chúng tôi" },
+      "compactReference": { "en": "Contact", "vi": "Liên hệ" }
+    },
+    {
+      "id": "nav-terms",
+      "source": "利用規約",
+      "component": "navigation",
+      "semanticCritical": true,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Terms of Use", "vi": "Điều khoản sử dụng" }
+    },
+    {
+      "id": "button-save",
+      "source": "保存する",
+      "component": "button",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Save", "vi": "Lưu" }
+    },
+    {
+      "id": "button-review-send",
+      "source": "確認して送信",
+      "component": "button",
+      "semanticCritical": true,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Review and send", "vi": "Xem lại và gửi" },
+      "compactReference": { "en": "Send", "vi": "Gửi" },
+      "reviewNote": "The full value must preserve both the review and send actions; compact output must not be displayed without full-text access."
+    },
+    {
+      "id": "table-owner",
+      "source": "担当者",
+      "component": "table",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Owner", "vi": "Người phụ trách" },
+      "compactReference": { "en": "Owner", "vi": "Phụ trách" }
+    },
+    {
+      "id": "table-status",
+      "source": "進捗状況",
+      "component": "table",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": { "en": "Status", "vi": "Tiến độ" }
+    },
+    {
+      "id": "heading-description",
+      "source": "説明文",
+      "component": "heading",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": false, "allowWrap": true },
+      "reference": { "en": "Description", "vi": "Mô tả" }
+    },
+    {
+      "id": "paragraph-long",
+      "source": "長い説明テキストです。",
+      "component": "paragraph",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": false, "allowWrap": true },
+      "reference": {
+        "en": "This is a longer description that should remain readable while the surrounding card stays coherent.",
+        "vi": "Đây là phần mô tả dài cần giữ khả năng đọc trong khi bố cục thẻ vẫn nhất quán."
+      }
+    },
+    {
+      "id": "critical-delete",
+      "source": "この項目を削除すると元に戻せません。",
+      "component": "unknown",
+      "semanticCritical": true,
+      "constraints": { "preferCompact": false, "allowWrap": true },
+      "reference": {
+        "en": "This item cannot be restored after deletion.",
+        "vi": "Không thể khôi phục mục này sau khi xóa."
+      },
+      "reviewNote": "Do not omit irreversibility or silently reduce this warning to a generic delete label."
+    },
+    {
+      "id": "placeholder-count",
+      "source": "{{count}}件の通知",
+      "component": "paragraph",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": false, "allowWrap": true },
+      "reference": {
+        "en": "{{count}} notifications",
+        "vi": "{{count}} thông báo"
+      },
+      "reviewNote": "The interpolation token {{count}} must be preserved exactly."
+    },
+    {
+      "id": "numeric-date",
+      "source": "更新日: 2026/08/12",
+      "component": "table",
+      "semanticCritical": false,
+      "constraints": { "preferCompact": true, "allowWrap": false },
+      "reference": {
+        "en": "Updated: 2026/08/12",
+        "vi": "Cập nhật: 2026/08/12"
+      },
+      "reviewNote": "The date value must remain unchanged unless a separate localization policy exists."
+    }
+  ]
+}

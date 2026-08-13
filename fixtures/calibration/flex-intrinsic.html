@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calibration Flex Intrinsic</title>
+    <link rel="stylesheet" href="./calibration.css" />
+  </head>
+  <body>
+    <main class="calibration-shell">
+      <header class="calibration-header" data-calibration="header">
+        <strong>Flex Intrinsic</strong>
+        <nav data-calibration="nav" aria-label="Primary navigation">
+          <a href="#company">会社情報</a>
+          <a href="#contact">お問い合わせはこちら</a>
+          <a href="#terms">利用規約</a>
+        </nav>
+      </header>
+      <section class="calibration-row">
+        <div>
+          <h1 class="calibration-title" data-calibration="anchor">会社情報</h1>
+          <p class="calibration-copy">長い説明テキストです。</p>
+        </div>
+        <button class="calibration-critical" data-calibration="critical" data-semantic-critical="true" type="button">確認して送信</button>
+      </section>
+      <section class="calibration-divider calibration-footer">
+        <p data-calibration="sibling">利用規約</p>
+        <button class="calibration-action" type="button">保存する</button>
+      </section>
+    </main>
+  </body>
+</html>

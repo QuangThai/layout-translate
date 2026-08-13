@@ -24,4 +24,17 @@ describe("mock translation adapter", () => {
     expect(result.full).toBe("未登録の文字列");
     expect(result.compact).toBe(result.full);
   });
+
+  it("provides a compact badge candidate before constrained ellipsis", async () => {
+    const result = (await mockTranslateBatch(
+      [{ anchorId: "anchor-3", source: "新しい通知", component: "badge" }],
+      "en",
+    ))[0]!;
+
+    expect(result).toEqual({
+      anchorId: "anchor-3",
+      full: "New notification",
+      compact: "New",
+    });
+  });
 });

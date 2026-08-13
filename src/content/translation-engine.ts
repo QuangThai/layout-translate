@@ -20,6 +20,7 @@ interface SourceRecord {
   mode: ReturnType<typeof preserveModeFor>;
   originalStyle: string | null;
   originalTitle: string | null;
+  originalAriaLabel: string | null;
   translation?: TranslationResult;
   translatedTarget?: TargetLanguage;
   displayedText?: string;
@@ -33,6 +34,11 @@ export type ContentStatusReporter = (
   translatedAnchors: number,
   error?: string,
 ) => void | Promise<void>;
+
+export type BatchTranslator = (
+  requests: Array<{ anchorId: string; source: string; component: ReturnType<typeof classifyElement> }>,
+  targetLanguage: TargetLanguage,
+) => Promise<TranslationResult[]>;
 
 function splitWhitespace(value: string): { core: string; prefix: string; suffix: string } {
   const prefix = value.match(/^\s*/u)?.[0] ?? "";
@@ -52,12 +58,26 @@ function isVisible(element: HTMLElement): boolean {
   return style.display !== "none" && style.visibility !== "hidden";
 }
 
+function hasIntrinsicLayoutAncestor(element: HTMLElement): boolean {
+  let current = element.parentElement;
+  while (current && current !== document.body) {
+    const display = window.getComputedStyle(current).display;
+    if (["flex", "inline-flex", "grid", "inline-grid"].includes(display)) return true;
+    current = current.parentElement;
+  }
+  return false;
+}
+
 export class PageTranslationEngine {
   private readonly records = new Map<string, SourceRecord>();
   private readonly recordByNode = new WeakMap<Text, SourceRecord>();
   private readonly recordByElementSlot = new WeakMap<HTMLElement, Map<number, SourceRecord>>();
   private readonly sourceByElementSlot = new WeakMap<HTMLElement, Map<number, string>>();
-  private readonly styleSnapshots = new WeakMap<HTMLElement, { style: string | null; title: string | null }>();
+  private readonly styleSnapshots = new WeakMap<HTMLElement, {
+    style: string | null;
+    title: string | null;
+    ariaLabel: string | null;
+  }>();
   private nextAnchor = 1;
   private observer?: MutationObserver;
   private scanTimer?: number;
@@ -67,10 +87,14 @@ export class PageTranslationEngine {
   private stopped = false;
   private originalPushState?: History["pushState"];
   private originalReplaceState?: History["replaceState"];
+  private fontSet?: FontFaceSet;
+  private fontEventHandler?: EventListener;
 
   constructor(
     private readonly root: Document,
     private readonly reportStatus: ContentStatusReporter = () => undefined,
+    private readonly translateBatch: BatchTranslator = (requests, targetLanguage) =>
+      mockTranslateBatch(requests, targetLanguage),
   ) {}
 
   start(): void {
@@ -82,6 +106,7 @@ export class PageTranslationEngine {
       childList: true,
       characterData: true,
     });
+    this.installFontHooks();
     this.installRouteHooks();
     void this.reportStatus("inactive", 0);
   }
@@ -91,6 +116,7 @@ export class PageTranslationEngine {
     this.observer?.disconnect();
     this.observer = undefined;
     if (this.scanTimer !== undefined) window.clearTimeout(this.scanTimer);
+    this.removeFontHooks();
     this.restoreOriginal();
     this.removeRouteHooks();
   }
@@ -141,6 +167,7 @@ export class PageTranslationEngine {
     if (!this.enabled || this.translating || this.stopped) return;
     this.translating = true;
     try {
+      await this.waitForFonts();
       const recordCountBeforeCollect = this.records.size;
       await this.collectRecords();
       const pending = [...this.records.values()].filter(
@@ -153,7 +180,7 @@ export class PageTranslationEngine {
         return;
       }
       await this.reportStatus("translating", this.records.size);
-      const results = await mockTranslateBatch(
+      const results = await this.translateBatch(
         pending.map((record) => ({
           anchorId: record.anchorId,
           source: record.source,
@@ -235,13 +262,18 @@ export class PageTranslationEngine {
         mode: preserveModeFor(component, element),
         originalStyle: element.getAttribute("style"),
         originalTitle: element.getAttribute("title"),
+        originalAriaLabel: element.getAttribute("aria-label"),
         beforeGeometry: measureElement(element),
         slot,
       };
       const slots = this.sourceByElementSlot.get(element) ?? new Map<number, string>();
       slots.set(slot, source);
       this.sourceByElementSlot.set(element, slots);
-      this.styleSnapshots.set(element, { style: record.originalStyle, title: record.originalTitle });
+      this.styleSnapshots.set(element, {
+        style: record.originalStyle,
+        title: record.originalTitle,
+        ariaLabel: record.originalAriaLabel,
+      });
       this.recordByNode.set(node, record);
       const recordsForElement = this.recordByElementSlot.get(element) ?? new Map<number, SourceRecord>();
       recordsForElement.set(slot, record);
@@ -250,12 +282,44 @@ export class PageTranslationEngine {
     }
   }
 
+  private installFontHooks(): void {
+    const fonts = this.root.fonts;
+    if (!fonts) return;
+    this.fontSet = fonts;
+    this.fontEventHandler = () => {
+      for (const record of this.records.values()) record.translatedTarget = undefined;
+      this.scheduleScan();
+    };
+    fonts.addEventListener("loadingdone", this.fontEventHandler);
+    fonts.addEventListener("loadingerror", this.fontEventHandler);
+  }
+
+  private removeFontHooks(): void {
+    if (this.fontSet && this.fontEventHandler) {
+      this.fontSet.removeEventListener("loadingdone", this.fontEventHandler);
+      this.fontSet.removeEventListener("loadingerror", this.fontEventHandler);
+    }
+    this.fontSet = undefined;
+    this.fontEventHandler = undefined;
+  }
+
+  private async waitForFonts(): Promise<void> {
+    const fonts = this.root.fonts;
+    if (!fonts) return;
+    try {
+      await fonts.ready;
+    } catch {
+      // Translation should continue even when a page font fails to load.
+    }
+  }
+
   private renderRecord(record: SourceRecord): void {
     if (!record.translation || !record.node.isConnected) return;
     this.restorePresentation(record);
     this.preserveHardRegion(record);
+    const mediumRegionPreserved = this.preserveMediumRegion(record);
     this.setNodeText(record, record.translation.full);
-    if (record.mode === "soft" || record.mode === "medium") {
+    if (record.mode === "soft" || (record.mode === "medium" && !mediumRegionPreserved)) {
       record.displayedText = record.translation.full;
       record.fallback = "full";
       return;
@@ -272,6 +336,7 @@ export class PageTranslationEngine {
       record.element.style.textOverflow = "ellipsis";
       record.element.style.whiteSpace = "nowrap";
       record.element.title = record.translation.full;
+      record.element.setAttribute("aria-label", record.translation.full);
       record.displayedText = record.translation.full;
       record.fallback = "ellipsis-tooltip";
       return;
@@ -289,8 +354,29 @@ export class PageTranslationEngine {
     record.element.style.textOverflow = "ellipsis";
     record.element.style.whiteSpace = "nowrap";
     record.element.title = record.translation.full;
+    record.element.setAttribute("aria-label", record.translation.full);
     record.displayedText = record.translation.full;
     record.fallback = "ellipsis-tooltip";
+  }
+
+  private preserveMediumRegion(record: SourceRecord): boolean {
+    // Headings participate in normal flow as well as flex/grid sizing; card
+    // copy is constrained only when it sits inside an intrinsic layout group.
+    if (
+      record.mode !== "medium" ||
+      !record.beforeGeometry ||
+      record.beforeGeometry.height <= 0 ||
+      !["heading", "card"].includes(record.component) ||
+      (record.component === "card" && !hasIntrinsicLayoutAncestor(record.element))
+    ) {
+      return false;
+    }
+
+    const height = `${record.beforeGeometry.height}px`;
+    record.element.style.boxSizing = "border-box";
+    record.element.style.height = height;
+    record.element.style.maxHeight = height;
+    return true;
   }
 
   private preserveHardRegion(record: SourceRecord): void {
@@ -333,6 +419,8 @@ export class PageTranslationEngine {
     else record.element.setAttribute("style", snapshot.style);
     if (snapshot.title === null) record.element.removeAttribute("title");
     else record.element.setAttribute("title", snapshot.title);
+    if (snapshot.ariaLabel === null) record.element.removeAttribute("aria-label");
+    else record.element.setAttribute("aria-label", snapshot.ariaLabel);
   }
 
   private restoreOriginal(): void {

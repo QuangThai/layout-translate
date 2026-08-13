@@ -89,6 +89,7 @@ implementation default. The accepted MVP data/security boundary is recorded in
 | Topic | Current status |
 |---|---|
 | Exact visual tolerance | Decision required; calibrate with representative fixtures |
+| Constrained fallback accessibility | Proposed spike contract; validate assistive-tech, touch, click, and Escape behavior before acceptance |
 | Allowed domains and data sent to the backend | Decided for MVP; explicit allowlist and minimized payload |
 | PII/sensitive-data masking | Decided for MVP; mask or deny server-side, fail closed when uncertain |
 | Persistent backend caching and retention | Decided for MVP; no durable source/translation content retention |

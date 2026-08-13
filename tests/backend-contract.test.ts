@@ -4,6 +4,8 @@ import {
   assertBearerToken,
   ContractError,
   createRateLimiter,
+  MAX_BATCH_ITEMS,
+  MAX_SOURCE_LENGTH,
   parseTranslationRequest,
   validateTranslationResults,
 } from "../backend/src/contract";
@@ -58,6 +60,40 @@ describe("translation backend contract", () => {
     expect(() => assertAllowedPageOrigin("https://other.example.test", allowedOrigins)).toThrowError(
       expect.objectContaining({ code: "origin_not_allowed", status: 403 }),
     );
+  });
+
+  it("rejects unsupported, duplicate, and oversized requests", () => {
+    const item = validRequest().items[0];
+    expect(() => parseTranslationRequest(validRequest({ unsupported: true }), allowedOrigins)).toThrowError(
+      expect.objectContaining({ code: "invalid_request", status: 400 }),
+    );
+    expect(() => parseTranslationRequest(validRequest({ items: [item, item] }), allowedOrigins)).toThrowError(
+      expect.objectContaining({ code: "invalid_request", status: 400 }),
+    );
+    expect(() => parseTranslationRequest(
+      validRequest({
+        items: Array.from({ length: MAX_BATCH_ITEMS + 1 }, (_, index) => ({ ...item, anchorId: `anchor-${index}` })),
+      }),
+      allowedOrigins,
+    )).toThrowError(expect.objectContaining({ code: "invalid_request", status: 400 }));
+    expect(() => parseTranslationRequest(
+      validRequest({ items: [{ ...item, source: "x".repeat(MAX_SOURCE_LENGTH + 1) }] }),
+      allowedOrigins,
+    )).toThrowError(expect.objectContaining({ code: "invalid_request", status: 400 }));
+  });
+
+  it("fails closed for an explicitly sensitive classification", () => {
+    expect(() => parseTranslationRequest(
+      validRequest({ items: [{ ...validRequest().items[0], dataClass: "sensitive" }] }),
+      allowedOrigins,
+    )).toThrowError(expect.objectContaining({ code: "sensitive_content_blocked", status: 422 }));
+  });
+
+  it("rejects translation results that do not correlate to requested anchors", () => {
+    const request = parseTranslationRequest(validRequest(), allowedOrigins);
+    expect(() => validateTranslationResults(request.items, [
+      { anchorId: "unknown", full: "Company", compact: "Company" },
+    ])).toThrowError(expect.objectContaining({ code: "provider_invalid_response", status: 502 }));
   });
 
   it("requires the configured bearer token", () => {

@@ -1,13 +1,23 @@
 import { browser } from "wxt/browser";
 import {
   DEFAULT_EXTENSION_STATE,
+  type BackendConfig,
   type ContentCommand,
   type ExtensionState,
   type RuntimeMessage,
   type RuntimeResponse,
 } from "../src/shared/contracts";
+import { translateViaBackend } from "../src/shared/backend-client";
 
 const STORAGE_KEY = "layout-translate:state";
+async function readBackendConfig(): Promise<BackendConfig> {
+  const stored = await browser.storage.local.get("layout-translate:backend");
+  const configured = stored["layout-translate:backend"] as Partial<BackendConfig> | undefined;
+  return {
+    url: configured?.url ?? "",
+    token: configured?.token ?? "",
+  };
+}
 
 async function readState(): Promise<ExtensionState> {
   const stored = await browser.storage.local.get(STORAGE_KEY);
@@ -49,13 +59,31 @@ async function sendToActiveTab(command: ContentCommand): Promise<boolean> {
 
 async function handleMessage(
   message: RuntimeMessage,
-  sender: { tab?: { id?: number } },
+  sender: { tab?: { id?: number; url?: string } },
 ): Promise<RuntimeResponse> {
   const state = await readState();
 
   switch (message.type) {
     case "GET_STATE":
       return { type: "STATE", state };
+    case "TRANSLATE_BATCH": {
+      try {
+        const config = await readBackendConfig();
+        const translations = await translateViaBackend(
+          config,
+          sender.tab?.url ? new URL(sender.tab.url).origin : "",
+          message.requests,
+          message.targetLanguage,
+        );
+        return { type: "TRANSLATION_RESULT", translations };
+      } catch (error) {
+        return {
+          type: "UNAVAILABLE",
+          state,
+          reason: error instanceof Error ? error.message : "Translation backend request failed",
+        };
+      }
+    }
     case "CONTENT_READY": {
       const delivered = await sendToTab(sender.tab?.id, { type: "SYNC_STATE", state });
       return { type: "ACK", state, delivered };
