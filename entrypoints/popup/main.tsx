@@ -13,6 +13,7 @@ import {
 
 function statusLabel(state: ExtensionState): string {
   if (state.lastError) return state.lastError;
+  if (state.status === "unsupported") return "Japanese source not detected";
   if (state.status === "translating") return "Translating fixture text";
   if (state.status === "rendered") return "Anchors preserved where possible";
   if (state.status === "restored") return "Original Japanese restored";

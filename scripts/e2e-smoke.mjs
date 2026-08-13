@@ -931,6 +931,44 @@ async function main() {
     assert(restoredState.fontSensitive === "会社情報", "font-sensitive source restored");
     assert(restoredState.titles === 0, "extension presentation styles and titles restored");
     assert(restoredState.ariaLabelsWithTitles === 0, "extension accessibility labels restored with presentation");
+
+    const backendResponseCountBeforeLanguageGate = backendTrace.responseCount;
+    await evaluate(
+      cdp,
+      fixture,
+      `(() => {
+        document.documentElement.lang = "en";
+        document.body.replaceChildren(
+          Object.assign(document.createElement("main"), {
+            id: "english-only-page",
+            textContent: "This page contains only English source text.",
+          }),
+        );
+        return document.body.textContent;
+      })()`,
+    );
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    const unsupportedState = await waitFor(
+      async () => {
+        const state = await getExtensionState();
+        return state?.status === "unsupported" ? state : false;
+      },
+      "non-Japanese source detection status",
+    );
+    const languageGate = await evaluate(
+      cdp,
+      fixture,
+      "({ text: document.querySelector('#english-only-page')?.textContent, japaneseChars: (document.body.innerText.match(/[\\u3040-\\u30ff\\u3400-\\u9fff]/g) || []).length })",
+    );
+    assert(unsupportedState.translatedAnchors === 0, "non-Japanese page creates no translation anchors");
+    assert(languageGate.text === "This page contains only English source text.", "non-Japanese page remains unchanged");
+    assert(languageGate.japaneseChars === 0, "language gate fixture contains no Japanese characters");
+    assert(backendTrace.responseCount === backendResponseCountBeforeLanguageGate, "non-Japanese page sends no translation request");
+    await evaluate(cdp, popup, "document.querySelector('button.restore-button').click()");
+    await waitFor(
+      () => evaluate(cdp, popup, "document.querySelector('button.toggle')?.getAttribute('aria-pressed') === 'false'"),
+      "non-Japanese language gate cleanup",
+    );
     assert(pageErrors.length === 0, `fixture page raised ${pageErrors.length} runtime exception(s)`);
     assert(consoleErrors.length === 0, `fixture page emitted ${consoleErrors.length} console error(s)`);
 
@@ -983,6 +1021,7 @@ async function main() {
         screenshotFiles,
         dynamicSpaTranslatedAndRestored: true,
         originalRestored: true,
+        sourceLanguageGateVerified: true,
         backendFailureSourcePreserved: true,
         backendFailureStatus: failedTranslationState.status,
         backendFailureCodeObserved: failedTranslationState.lastError.includes("unauthorized"),
@@ -1000,6 +1039,7 @@ async function main() {
         fixture: `http://127.0.0.1:${fixturePort}${fixturePath}`,
         dynamicSpa: "translated and restored",
         originalRestored: true,
+        sourceLanguageGateVerified: true,
         removedAnchors: stateBeforeRemoval.translatedAnchors - stateAfterRemoval.translatedAnchors,
         navigationAnchorShift,
         pageErrorCount: pageErrors.length,

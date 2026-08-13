@@ -103,6 +103,7 @@ The initial state model should make these transitions explicit:
 ```text
 inactive
   -> active(source=detected, target=EN|VI)
+  -> unsupported (source is not confidently Japanese)
   -> translating
   -> rendered
   -> translating       (new/changed DOM or route)
@@ -113,6 +114,8 @@ inactive
 
 Failures must preserve the original source value and surface an actionable
 status instead of leaving a partially mutated value as the source of truth.
+An ambiguous or non-Japanese page must remain unchanged and must not produce a
+translation batch.
 
 ## Rendering policy boundary
 

@@ -7,6 +7,7 @@ import type {
 } from "../shared/contracts";
 import { classifyElement, containsJapanese, preserveModeFor } from "../shared/classification";
 import { hasOverflow, measureElement, type GeometrySnapshot } from "../shared/geometry";
+import { detectSourceLanguage, type SourceLanguage } from "../shared/language-detection";
 import { mockTranslateBatch } from "../shared/mock-translation";
 
 interface SourceRecord {
@@ -215,8 +216,12 @@ export class PageTranslationEngine {
       await this.waitForFonts();
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       const recordCountBeforeCollect = this.records.size;
-      await this.collectRecords();
+      const detectedSourceLanguage = await this.collectRecords();
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
+      if (detectedSourceLanguage !== "ja") {
+        await this.reportStatus("unsupported", this.records.size);
+        return;
+      }
       const pending = [...this.records.values()].filter(
         (record) => record.translatedTarget !== requestedLanguage,
       );
@@ -275,7 +280,7 @@ export class PageTranslationEngine {
       && this.targetLanguage === requestedLanguage;
   }
 
-  private async collectRecords(): Promise<void> {
+  private async collectRecords(): Promise<SourceLanguage> {
     for (const record of [...this.records.values()]) {
       if (!record.node.isConnected || !record.element.isConnected) this.removeRecord(record);
     }
@@ -288,11 +293,11 @@ export class PageTranslationEngine {
       current = walker.nextNode();
     }
 
-    for (const node of nodes) {
+    const contexts = nodes.map((node) => {
       const element = node.parentElement;
-      if (!element || !isVisible(element)) continue;
+      if (!element || !isVisible(element)) return undefined;
       const { core, prefix, suffix } = splitWhitespace(node.data);
-      if (!core) continue;
+      if (!core) return undefined;
       const slot = nodeSlot(node);
       const existingRecord = this.recordByNode.get(node);
       const savedSource = this.sourceByElementSlot.get(element)?.get(slot);
@@ -304,13 +309,26 @@ export class PageTranslationEngine {
             previousRecord.translation?.compact,
           ].includes(core)
         : false;
+      return { node, element, core, prefix, suffix, slot, existingRecord, savedSource, previousRecord, knownProjection };
+    }).filter((context): context is NonNullable<typeof context> => context !== undefined);
+
+    const sourceLanguage = detectSourceLanguage(
+      contexts.map((context) => context.knownProjection && context.previousRecord ? context.previousRecord.source : context.core).join("\n"),
+      this.root.documentElement.lang,
+    );
+
+    for (const context of contexts) {
+      const { node, element, core, prefix, suffix, slot, existingRecord, savedSource, previousRecord, knownProjection } = context;
       const currentIsNewSource =
         containsJapanese(core) &&
         savedSource !== undefined &&
         core !== savedSource &&
         !knownProjection;
 
-      if (existingRecord && !currentIsNewSource) continue;
+      if (existingRecord && !currentIsNewSource) {
+        if (!knownProjection && !containsJapanese(core)) this.removeRecord(existingRecord);
+        continue;
+      }
 
       if (currentIsNewSource && previousRecord) this.removeRecord(previousRecord);
 
@@ -339,6 +357,8 @@ export class PageTranslationEngine {
       this.recordByElementSlot.set(element, recordsForElement);
       this.records.set(record.anchorId, record);
     }
+
+    return sourceLanguage;
   }
 
   private installFontHooks(): void {
