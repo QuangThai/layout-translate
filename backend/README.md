@@ -43,12 +43,27 @@ npm run backend:mock
 The server rejects missing/invalid authorization, non-allowlisted page
 origins, unsupported fields, oversized batches/bodies, duplicate anchors,
 protected or uncertain data classes, and provider responses that do not
-correlate to the request. It does not persist source or translated content.
-The extension does not call it yet; this boundary exists to make the future
-backend integration explicit without shipping credentials or page content.
+correlate to the request. It fails fast when the auth token or page-origin
+allowlist is not configured, and it does not persist source or translated
+content. Every HTTP response carries a non-content `x-request-id` for
+correlating client-side failures with backend observations. The extension
+client includes that opaque ID in diagnostics when the backend returns one;
+smoke reports retain IDs only, never request content. The synthetic
+failure-mode endpoint is test-only and activates only when
+`LAYOUT_TRANSLATE_ALLOW_TEST_FAILURE_MODE=true`; it must never be enabled on a
+shared or production backend.
+For an approved offline calibration replay only, the runner may set
+`LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES` to a temporary JSON object mapping
+source strings to reviewed `{ en, vi, compact? }` values. This is a deterministic
+test adapter; it never calls a provider and the file is created under the
+runner's temporary profile. The extension chunks larger DOM scans to the
+contract's maximum batch size before sending them.
 
 Replay the HTTP boundary proof with:
 
 ```text
 npm run backend:smoke
 ```
+
+The smoke output covers an authorized `200`, missing-auth `401`, disallowed
+page-origin `403`, protected-content `422`, and rate-limit `429` response.

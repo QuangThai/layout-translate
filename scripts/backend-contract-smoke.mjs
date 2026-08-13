@@ -37,7 +37,11 @@ async function request(baseUrl, body, authorization = authToken) {
     },
     body: JSON.stringify(body),
   });
-  return { status: response.status, body: await response.json() };
+  return {
+    status: response.status,
+    body: await response.json(),
+    requestId: response.headers.get("x-request-id"),
+  };
 }
 
 async function waitForServer(baseUrl, body) {
@@ -85,6 +89,7 @@ async function main() {
       LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN: authToken,
       LAYOUT_TRANSLATE_ALLOWED_ORIGINS: allowedOrigin,
       LAYOUT_TRANSLATE_ALLOWED_CLIENT_ORIGINS: "",
+      LAYOUT_TRANSLATE_RATE_LIMIT: "3",
     },
     stdio: "ignore",
     windowsHide: true,
@@ -106,7 +111,22 @@ async function main() {
     });
     assert(sensitive.status === 422, "protected content is rejected");
 
-    console.log(JSON.stringify({ result: "passed", valid: valid.status, unauthorized: unauthorized.status, disallowedOrigin: disallowedOrigin.status, sensitive: sensitive.status }, null, 2));
+    const rateLimited = await request(baseUrl, validBody);
+    assert(rateLimited.status === 429, "requests over the configured rate limit are rejected");
+    const requestIds = [valid, unauthorized, disallowedOrigin, sensitive, rateLimited].map((result) => result.requestId);
+    assert(requestIds.every((requestId) => requestId), "every response exposes a non-content request correlation ID");
+    assert(new Set(requestIds).size === requestIds.length, "each response receives a unique request correlation ID");
+
+    console.log(JSON.stringify({
+      result: "passed",
+      valid: valid.status,
+      unauthorized: unauthorized.status,
+      disallowedOrigin: disallowedOrigin.status,
+      sensitive: sensitive.status,
+      rateLimited: rateLimited.status,
+      correlatedResponses: requestIds.length,
+      uniqueRequestIds: new Set(requestIds).size,
+    }, null, 2));
   } finally {
     stopProcess(server);
     await sleep(250);

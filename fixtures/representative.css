@@ -43,11 +43,18 @@ h2 { font-size: 19px; margin-bottom: 14px; }
 .badge { background: #f0d7c9; border-radius: 999px; color: #94422f; display: inline-block; font-size: 11px; font-weight: 800; margin-bottom: 20px; padding: 6px 10px; white-space: nowrap; }
 table { border-collapse: collapse; table-layout: fixed; width: 100%; }
 th, td { border-bottom: 1px solid #e2d9ce; font-size: 12px; overflow: hidden; padding: 12px 8px; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.framework-panel { align-items: center; border-top: 1px solid #d9d0c4; display: flex; gap: 20px; justify-content: space-between; margin-top: 28px; padding-top: 22px; }
+.framework-panel p { margin-bottom: 0; }
+.font-sensitive { font-family: "FixtureDelayedFont", "Yu Gothic", sans-serif; }
+.framework-runtime-panel { border-top: 1px solid #d9d0c4; display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 28px; padding-top: 22px; }
+.runtime-app { background: #fffdf8; border: 1px solid #ded5c9; min-width: 0; padding: 18px; }
+.runtime-app p { margin-bottom: 16px; }
+.runtime-app .section-label { margin-bottom: 10px; }
 .dynamic-panel { align-items: center; border-top: 1px solid #d9d0c4; display: flex; justify-content: space-between; margin-top: 28px; padding-top: 22px; }
 .dynamic-panel p { margin-bottom: 0; }
 
 @media (max-width: 700px) {
-  .site-header, .hero, .dynamic-panel { align-items: flex-start; flex-direction: column; }
+  .site-header, .hero, .framework-panel, .dynamic-panel { align-items: flex-start; flex-direction: column; }
   nav { flex-wrap: wrap; white-space: normal; }
-  .content-grid { grid-template-columns: 1fr; }
+  .content-grid, .framework-runtime-panel { grid-template-columns: 1fr; }
 }

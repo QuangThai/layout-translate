@@ -1,5 +1,8 @@
 export type TargetLanguage = "en" | "vi";
 
+// Keep extension request chunks within the backend contract's bounded batch.
+export const MAX_TRANSLATION_BATCH_ITEMS = 50;
+
 export type TranslationStatus =
   | "inactive"
   | "scanning"
@@ -49,6 +52,13 @@ export interface TranslationResult {
   compact: string;
 }
 
+export const BACKEND_CONFIG_KEY = "layout-translate:backend";
+
+export interface BackendConfig {
+  url: string;
+  token: string;
+}
+
 export type ContentCommand =
   | { type: "SYNC_STATE"; state: ExtensionState }
   | { type: "SET_ENABLED"; enabled: boolean }
@@ -62,6 +72,11 @@ export type RuntimeMessage =
   | { type: "RESTORE_ORIGINAL" }
   | { type: "CONTENT_READY" }
   | {
+      type: "TRANSLATE_BATCH";
+      targetLanguage: TargetLanguage;
+      requests: TranslationRequest[];
+    }
+  | {
       type: "CONTENT_STATUS";
       status: TranslationStatus;
       translatedAnchors: number;
@@ -71,6 +86,7 @@ export type RuntimeMessage =
 export type RuntimeResponse =
   | { type: "STATE"; state: ExtensionState; delivered?: boolean }
   | { type: "ACK"; state: ExtensionState; delivered?: boolean }
+  | { type: "TRANSLATION_RESULT"; translations: TranslationResult[] }
   | { type: "UNAVAILABLE"; state: ExtensionState; reason: string };
 
 export type ContentMessage = { type: "CONTENT_COMMAND"; command: ContentCommand };

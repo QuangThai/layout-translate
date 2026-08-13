@@ -1,11 +1,30 @@
 import { browser } from "wxt/browser";
 import { PageTranslationEngine } from "../src/content/translation-engine";
-import type { ContentMessage, RuntimeMessage } from "../src/shared/contracts";
+import { MAX_TRANSLATION_BATCH_ITEMS, type ContentMessage, type RuntimeMessage, type TargetLanguage, type TranslationRequest, type TranslationResult, type RuntimeResponse } from "../src/shared/contracts";
 
 export default defineContentScript({
   matches: ["http://localhost/*", "http://127.0.0.1/*"],
   runAt: "document_idle",
   main(ctx) {
+      const translateBatch = async (
+        requests: TranslationRequest[],
+        targetLanguage: TargetLanguage,
+      ): Promise<TranslationResult[]> => {
+        const translations: TranslationResult[] = [];
+        for (let offset = 0; offset < requests.length; offset += MAX_TRANSLATION_BATCH_ITEMS) {
+          const response = await browser.runtime.sendMessage({
+            type: "TRANSLATE_BATCH",
+            targetLanguage,
+            requests: requests.slice(offset, offset + MAX_TRANSLATION_BATCH_ITEMS),
+          } satisfies RuntimeMessage) as RuntimeResponse;
+          if (response.type !== "TRANSLATION_RESULT") {
+            throw new Error(response.type === "UNAVAILABLE" ? response.reason : "Translation backend returned no translations");
+          }
+          translations.push(...response.translations);
+        }
+        return translations;
+      };
+
     const engine = new PageTranslationEngine(document, (status, translatedAnchors, error) => {
       void browser.runtime.sendMessage({
         type: "CONTENT_STATUS",
@@ -13,7 +32,7 @@ export default defineContentScript({
         translatedAnchors,
         error,
       } satisfies RuntimeMessage).catch(() => undefined);
-    });
+    }, translateBatch);
 
     engine.start();
     browser.runtime.onMessage.addListener((message: ContentMessage) => {

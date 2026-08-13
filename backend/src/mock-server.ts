@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { mockTranslateBatch } from "../../src/shared/mock-translation";
+import { mockTranslateBatch, type MockTranslationEntry } from "../../src/shared/mock-translation";
 import {
   assertBearerToken,
   ContractError,
@@ -14,34 +16,103 @@ const port = Number(process.env.LAYOUT_TRANSLATE_MOCK_PORT ?? 8787);
 const authToken = process.env.LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN;
 const allowedPageOrigins = parseAllowedOrigins(process.env.LAYOUT_TRANSLATE_ALLOWED_ORIGINS);
 const allowedClientOrigins = parseAllowedOrigins(process.env.LAYOUT_TRANSLATE_ALLOWED_CLIENT_ORIGINS);
+const allowExtensionClients = process.env.LAYOUT_TRANSLATE_ALLOW_EXTENSION_CLIENTS === "true";
+let activeFailureMode = process.env.LAYOUT_TRANSLATE_MOCK_FAILURE_MODE ?? "none";
+const allowTestFailureMode = process.env.LAYOUT_TRANSLATE_ALLOW_TEST_FAILURE_MODE === "true";
 const rateLimit = Number(process.env.LAYOUT_TRANSLATE_RATE_LIMIT ?? 60);
 const limiter = createRateLimiter(Number.isFinite(rateLimit) && rateLimit > 0 ? rateLimit : 60);
+const translationOverridesPath = process.env.LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES;
+
+function loadTranslationOverrides(path: string | undefined): Record<string, MockTranslationEntry> {
+  if (!path) return {};
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    throw new Error("LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES must point to valid JSON");
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error("LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES must contain an object map");
+  }
+  const overrides: Record<string, MockTranslationEntry> = {};
+  for (const [source, value] of Object.entries(parsed)) {
+    if (
+      !source
+      || typeof value !== "object"
+      || value === null
+      || Array.isArray(value)
+      || typeof (value as { en?: unknown }).en !== "string"
+      || typeof (value as { vi?: unknown }).vi !== "string"
+      || !(value as { en: string }).en
+      || !(value as { vi: string }).vi
+    ) {
+      throw new Error("LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES contains an invalid translation entry");
+    }
+    const compact = (value as { compact?: unknown }).compact;
+    if (compact !== undefined && (
+      typeof compact !== "object"
+      || compact === null
+      || Array.isArray(compact)
+      || (compact as { en?: unknown }).en !== undefined && typeof (compact as { en?: unknown }).en !== "string"
+      || (compact as { vi?: unknown }).vi !== undefined && typeof (compact as { vi?: unknown }).vi !== "string"
+    )) {
+      throw new Error("LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES contains an invalid compact entry");
+    }
+    overrides[source] = value as MockTranslationEntry;
+  }
+  return overrides;
+}
+
+const translationOverrides = loadTranslationOverrides(translationOverridesPath);
+
+if (!authToken) {
+  throw new Error("LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN must be configured before starting the mock backend");
+}
+if (allowedPageOrigins.length === 0) {
+  throw new Error("LAYOUT_TRANSLATE_ALLOWED_ORIGINS must contain at least one HTTP(S) origin");
+}
+
+function isAllowedClientOrigin(origin: string | undefined): boolean {
+  return Boolean(origin && (allowedClientOrigins.includes(origin) || (allowExtensionClients && /^chrome-extension:\/\//u.test(origin))));
+}
 
 function corsHeaders(request: IncomingMessage): Record<string, string> {
   const origin = request.headers.origin;
-  if (!origin || !allowedClientOrigins.includes(origin)) return {};
+  if (!isAllowedClientOrigin(origin)) return {};
   return {
-    "access-control-allow-origin": origin,
+    "access-control-allow-origin": origin!,
     "access-control-allow-headers": "authorization, content-type",
     "access-control-allow-methods": "POST, OPTIONS",
     vary: "Origin",
   };
 }
 
-function writeJson(request: IncomingMessage, response: ServerResponse, status: number, body: unknown): void {
+function writeJson(request: IncomingMessage, response: ServerResponse, status: number, body: unknown, requestId: string): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
+    "x-request-id": requestId,
     ...corsHeaders(request),
   });
   response.end(JSON.stringify(body));
+  console.log(JSON.stringify({
+    event: "translation_response",
+    requestId,
+    method: request.method,
+    path: request.url,
+    status,
+  }));
 }
 
-function sendError(request: IncomingMessage, response: ServerResponse, error: unknown): void {
+function sendError(request: IncomingMessage, response: ServerResponse, error: unknown, requestId: string): void {
   if (error instanceof ContractError) {
-    writeJson(request, response, error.status, { code: error.code, error: error.message });
+    writeJson(request, response, error.status, { code: error.code, error: error.message }, requestId);
     return;
   }
-  writeJson(request, response, 500, { code: "internal_error", error: "Translation request failed" });
+  writeJson(request, response, 500, { code: "internal_error", error: "Translation request failed" }, requestId);
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function readBody(request: IncomingMessage): Promise<unknown> {
@@ -64,20 +135,42 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
 }
 
 const server = createServer(async (request, response) => {
+  const requestId = randomUUID();
   const requestOrigin = request.headers.origin;
-  if (requestOrigin && !allowedClientOrigins.includes(requestOrigin)) {
-    writeJson(request, response, 403, { code: "origin_not_allowed", error: "Client origin is not allowed" });
+  if (requestOrigin && !isAllowedClientOrigin(requestOrigin)) {
+    writeJson(request, response, 403, { code: "origin_not_allowed", error: "Client origin is not allowed" }, requestId);
     return;
   }
 
   if (request.method === "OPTIONS") {
-    response.writeHead(204, corsHeaders(request));
+    response.writeHead(204, { "x-request-id": requestId, ...corsHeaders(request) });
     response.end();
+    console.log(JSON.stringify({
+      event: "translation_response",
+      requestId,
+      method: request.method,
+      path: request.url,
+      status: 204,
+    }));
+    return;
+  }
+
+  if (allowTestFailureMode && request.method === "POST" && request.url === "/__test/failure-mode") {
+    let raw = "";
+    request.setEncoding("utf8");
+    for await (const chunk of request) raw += chunk;
+    const requestedMode = JSON.parse(raw).mode;
+    if (!["none", "reject-422", "malformed-502", "timeout"].includes(requestedMode)) {
+      writeJson(request, response, 400, { code: "invalid_request", error: "Unsupported test failure mode" }, requestId);
+      return;
+    }
+    activeFailureMode = requestedMode;
+    writeJson(request, response, 204, {}, requestId);
     return;
   }
 
   if (request.method !== "POST" || request.url !== "/v1/translate") {
-    writeJson(request, response, 404, { code: "not_found", error: "Not found" });
+    writeJson(request, response, 404, { code: "not_found", error: "Not found" }, requestId);
     return;
   }
 
@@ -89,16 +182,37 @@ const server = createServer(async (request, response) => {
     }
     const body = await readBody(request);
     const parsed = parseTranslationRequest(body, allowedPageOrigins);
+    if (activeFailureMode === "reject-422") {
+      throw new ContractError("sensitive_content_blocked", 422, "Synthetic failure mode rejected the batch");
+    }
+    if (activeFailureMode === "malformed-502") {
+      writeJson(request, response, 502, { code: "provider_invalid_response", error: "Synthetic malformed provider response" }, requestId);
+      return;
+    }
+    if (activeFailureMode === "timeout") await sleep(15_000);
     // Keep the provider payload limited to the contract fields; no source-page
     // metadata or extension-owned fields are forwarded implicitly.
-    const providerResults = await mockTranslateBatch(
-      parsed.items.map(({ anchorId, source, component }) => ({ anchorId, source, component })),
-      parsed.targetLanguage,
-    );
-    const translations = validateTranslationResults(parsed.items, providerResults);
-    writeJson(request, response, 200, { translations });
+      const providerResults = await mockTranslateBatch(
+        parsed.items.map(({ anchorId, source, component }) => ({ anchorId, source, component })),
+        parsed.targetLanguage,
+      );
+      const overriddenResults = providerResults.map((result, index) => {
+        const item = parsed.items[index];
+        if (!item) return result;
+        const override = translationOverrides[item.source];
+        if (!override) return result;
+        const full = override[parsed.targetLanguage];
+        if (typeof full !== "string" || full.length === 0) return result;
+        return {
+          ...result,
+          full,
+          compact: override.compact?.[parsed.targetLanguage] ?? full,
+        };
+      });
+      const translations = validateTranslationResults(parsed.items, overriddenResults);
+    writeJson(request, response, 200, { translations }, requestId);
   } catch (error) {
-    sendError(request, response, error);
+    sendError(request, response, error, requestId);
   }
 });
 

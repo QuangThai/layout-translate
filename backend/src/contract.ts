@@ -1,10 +1,6 @@
-import type {
-  ComponentKind,
-  TargetLanguage,
-  TranslationResult,
-} from "../../src/shared/contracts";
+import { MAX_TRANSLATION_BATCH_ITEMS, type ComponentKind, type TargetLanguage, type TranslationResult } from "../../src/shared/contracts";
 
-export const MAX_BATCH_ITEMS = 50;
+export const MAX_BATCH_ITEMS = MAX_TRANSLATION_BATCH_ITEMS;
 export const MAX_SOURCE_LENGTH = 2_000;
 export const MAX_TRANSLATION_LENGTH = 4_000;
 export const MAX_REQUEST_BYTES = 64 * 1024;

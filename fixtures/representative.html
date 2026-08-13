@@ -59,6 +59,20 @@
         </article>
       </section>
 
+      <section class="framework-panel" aria-label="Framework rerender fixture">
+        <div id="framework-root">
+          <p class="section-label">FRAMEWORK RERENDER</p>
+          <p id="framework-copy">利用規約</p>
+        </div>
+        <p id="font-sensitive" class="font-sensitive">会社情報</p>
+        <button id="framework-rerender" class="secondary-action" type="button">Re-render framework region</button>
+      </section>
+
+      <section class="framework-runtime-panel" aria-label="React and Vue rerender fixtures">
+        <div id="react-root" class="runtime-app"></div>
+        <div id="vue-root" class="runtime-app"></div>
+      </section>
+
       <section class="dynamic-panel" aria-live="polite">
         <div>
           <p class="section-label">DYNAMIC DOM</p>
@@ -71,10 +85,32 @@
     <script>
       const dynamicCopy = document.querySelector("#dynamic-copy");
       const routeButton = document.querySelector("#route-button");
+      const frameworkRoot = document.querySelector("#framework-root");
+      const frameworkButton = document.querySelector("#framework-rerender");
       routeButton?.addEventListener("click", () => {
         history.pushState({}, "", "#review");
         if (dynamicCopy) dynamicCopy.textContent = "新しい通知";
       });
+      frameworkButton?.addEventListener("click", () => {
+        const next = document.createElement("p");
+        next.id = "framework-copy";
+        next.textContent = "新しい通知";
+        frameworkRoot?.replaceChildren(next);
+      });
+
+      const markFontReady = () => {
+        document.documentElement.dataset.fontReady = "true";
+      };
+      try {
+        const delayedFont = new FontFace("FixtureDelayedFont", "local('Arial')");
+        document.fonts?.add(delayedFont);
+        window.setTimeout(() => {
+          void delayedFont.load().then(() => document.fonts?.ready).catch(() => undefined).finally(markFontReady);
+        }, 120);
+      } catch {
+        markFontReady();
+      }
     </script>
+    <script type="module" src="/framework-fixture/framework-app.js"></script>
   </body>
 </html>

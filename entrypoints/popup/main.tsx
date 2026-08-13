@@ -30,7 +30,7 @@ function Popup() {
       const response = (await browser.runtime.sendMessage(
         message,
       )) as RuntimeResponse;
-      if (response?.state) setState(response.state);
+      if ("state" in response && response.state) setState(response.state);
     } catch (error) {
       setState((current) => ({
         ...current,

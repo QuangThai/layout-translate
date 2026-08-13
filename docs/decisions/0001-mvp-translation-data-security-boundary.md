@@ -15,9 +15,11 @@ visual-tolerance, domain-persistence, or Ask Atlas questions.
 `SPEC.md` makes the company backend the translation-provider boundary, but
 leaves the allowed domains, data classes, sensitive-data handling, and
 retention policy decision-required. The current mock backend is intentionally
-development-only: it has no authentication, persistence, rate limiting, or
-production security guarantees. The extension must not send page content to a
-real provider until those boundaries are explicit.
+development-only. It now exercises the request-side authentication, allowlist,
+payload, rate-limit, protected-content, and response-correlation controls, but
+it is not production authentication, PII classification, provider timeout
+handling, or a production security boundary. The extension must not send page
+content to a real provider until those boundaries are explicit and implemented.
 
 This record captures the smallest safe MVP boundary accepted for the current
 implementation phase. It supersedes the corresponding security/data open
@@ -85,8 +87,9 @@ Tradeoffs:
 
 ## Follow-Up
 
-- Implement backend authentication, validation, limits,
-  masking/denial, and non-content observability tests.
+- Carry the mock contract controls into the production backend: authentication,
+  validation, limits, PII/sensitive-data masking or denial, provider timeouts,
+  and non-content observability tests.
 - Keep the mock provider until the backend contract and security tests pass.
 - Run the EN/VI model benchmark as a separate decision; do not silently update
   this record with a model name.

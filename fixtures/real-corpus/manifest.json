@@ -1,0 +1,94 @@
+{
+  "schema": "layout-translate/real-corpus-manifest/v1",
+  "status": "pending-review",
+  "snapshotId": "synthetic-local-layout-v1",
+  "source": {
+    "kind": "repository-generated-synthetic",
+    "reference": "layout-translate-synthetic-corpus-v1",
+    "capturedAt": "2026-08-13"
+  },
+  "allowedUse": {
+    "purpose": "technical-spike-calibration",
+    "approvedBy": null,
+    "approvedAt": null
+  },
+  "sanitization": {
+    "reviewed": false,
+    "reviewedBy": null,
+    "reviewedAt": null,
+    "removedExternalRequests": true,
+    "syntheticDataOnly": true,
+    "notes": "All page text and values were generated for offline layout validation; no product approval has been granted."
+  },
+  "viewports": [
+    { "name": "desktop", "width": 1280, "height": 900, "pageOverflowPolicy": "hard" },
+    { "name": "mobile", "width": 390, "height": 844, "pageOverflowPolicy": "measure-only" }
+  ],
+  "calibration": {
+    "targets": [
+      {
+        "name": "hero-panel",
+        "anchorSelector": "[data-calibration='hero']",
+        "siblingSelector": "[data-calibration='card']",
+        "desktopHardGate": true
+      },
+      {
+        "name": "reports-table",
+        "anchorSelector": "[data-calibration='table-panel']",
+        "siblingSelector": "[data-calibration='notice']",
+        "desktopHardGate": true
+      },
+      {
+        "name": "long-form-summary",
+        "anchorSelector": ".long-form",
+        "siblingSelector": ".site-footer",
+        "desktopHardGate": false
+      }
+    ],
+    "translationCases": [
+      {
+        "name": "company-label",
+        "selector": ".translation-probe-company",
+        "source": "\u4f1a\u793e\u60c5\u5831",
+        "en": "Company",
+        "vi": "Thông tin công ty"
+      },
+      {
+        "name": "contact-label",
+        "selector": ".translation-probe-contact",
+        "source": "\u304a\u554f\u3044\u5408\u308f\u305b\u306f\u3053\u3061\u3089",
+        "en": "Contact us",
+        "vi": "Liên hệ với chúng tôi",
+        "compact": {
+          "en": "Contact",
+          "vi": "Liên hệ"
+        }
+      },
+      {
+        "name": "status-label",
+        "selector": ".translation-probe-status",
+        "source": "\u9032\u6357\u72b6\u6cc1",
+        "en": "Status",
+        "vi": "Tiến độ"
+      }
+    ],
+    "translationReview": {
+      "reviewed": false,
+      "reviewedBy": null,
+      "reviewedAt": null,
+      "notes": "Synthetic expected strings are deterministic test references only; no product translation approval has been granted."
+    }
+  },
+  "files": {
+    "html": "page.html",
+    "css": ["styles.css"],
+    "assets": [],
+    "fonts": [],
+    "screenshots": []
+  },
+  "runtime": {
+    "offlineReplay": true,
+    "expectedEntry": "page.html",
+    "notes": "Synthetic sample only; keep status pending-review until a product owner approves a real snapshot."
+  }
+}
