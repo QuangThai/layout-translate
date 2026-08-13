@@ -18,15 +18,29 @@ interface SourceRecord {
   suffix: string;
   component: ReturnType<typeof classifyElement>;
   mode: ReturnType<typeof preserveModeFor>;
-  originalStyle: string | null;
-  originalTitle: string | null;
-  originalAriaLabel: string | null;
   translation?: TranslationResult;
   translatedTarget?: TargetLanguage;
   displayedText?: string;
   fallback?: "full" | "compact" | "ellipsis-tooltip";
   beforeGeometry?: GeometrySnapshot;
   slot: number;
+}
+
+interface OwnedStyleMutation {
+  originalValue: string;
+  originalPriority: string;
+  appliedValue: string;
+  appliedPriority: string;
+}
+
+interface OwnedAttributeMutation {
+  originalValue: string | null;
+  appliedValue: string;
+}
+
+interface PresentationState {
+  styles: Map<string, OwnedStyleMutation>;
+  attributes: Map<"title" | "aria-label", OwnedAttributeMutation>;
 }
 
 export type ContentStatusReporter = (
@@ -39,6 +53,25 @@ export type BatchTranslator = (
   requests: Array<{ anchorId: string; source: string; component: ReturnType<typeof classifyElement> }>,
   targetLanguage: TargetLanguage,
 ) => Promise<TranslationResult[]>;
+
+export function correlateTranslationResults(
+  expectedAnchorIds: readonly string[],
+  results: readonly TranslationResult[],
+): Map<string, TranslationResult> {
+  const expected = new Set(expectedAnchorIds);
+  if (expected.size !== expectedAnchorIds.length || results.length !== expectedAnchorIds.length) {
+    throw new Error("Translation backend returned an incomplete or mismatched response");
+  }
+
+  const resultById = new Map<string, TranslationResult>();
+  for (const result of results) {
+    if (!expected.has(result.anchorId) || resultById.has(result.anchorId)) {
+      throw new Error("Translation backend returned an incomplete or mismatched response");
+    }
+    resultById.set(result.anchorId, result);
+  }
+  return resultById;
+}
 
 function splitWhitespace(value: string): { core: string; prefix: string; suffix: string } {
   const prefix = value.match(/^\s*/u)?.[0] ?? "";
@@ -73,15 +106,13 @@ export class PageTranslationEngine {
   private readonly recordByNode = new WeakMap<Text, SourceRecord>();
   private readonly recordByElementSlot = new WeakMap<HTMLElement, Map<number, SourceRecord>>();
   private readonly sourceByElementSlot = new WeakMap<HTMLElement, Map<number, string>>();
-  private readonly styleSnapshots = new WeakMap<HTMLElement, {
-    style: string | null;
-    title: string | null;
-    ariaLabel: string | null;
-  }>();
+  private readonly presentationStates = new WeakMap<HTMLElement, PresentationState>();
   private nextAnchor = 1;
   private observer?: MutationObserver;
   private scanTimer?: number;
   private translating = false;
+  private rescanRequested = false;
+  private translationVersion = 0;
   private enabled = false;
   private targetLanguage: TargetLanguage = "en";
   private stopped = false;
@@ -100,7 +131,10 @@ export class PageTranslationEngine {
   start(): void {
     if (this.observer) return;
     this.stopped = false;
-    this.observer = new MutationObserver(() => this.scheduleScan());
+    this.observer = new MutationObserver(() => {
+      this.translationVersion += 1;
+      this.scheduleScan();
+    });
     this.observer.observe(this.root.documentElement, {
       subtree: true,
       childList: true,
@@ -113,6 +147,8 @@ export class PageTranslationEngine {
 
   stop(): void {
     this.stopped = true;
+    this.translationVersion += 1;
+    this.rescanRequested = false;
     this.observer?.disconnect();
     this.observer = undefined;
     if (this.scanTimer !== undefined) window.clearTimeout(this.scanTimer);
@@ -124,7 +160,7 @@ export class PageTranslationEngine {
   handleCommand(command: ContentCommand): void {
     switch (command.type) {
       case "SYNC_STATE":
-        this.targetLanguage = command.state.targetLanguage;
+        this.setTargetLanguage(command.state.targetLanguage);
         this.setEnabled(command.state.enabled);
         break;
       case "SET_ENABLED":
@@ -150,13 +186,20 @@ export class PageTranslationEngine {
   }
 
   private setTargetLanguage(targetLanguage: TargetLanguage): void {
+    if (this.targetLanguage === targetLanguage) return;
     this.targetLanguage = targetLanguage;
+    this.translationVersion += 1;
     for (const record of this.records.values()) record.translatedTarget = undefined;
     if (this.enabled) this.scheduleScan();
   }
 
   private scheduleScan(): void {
-    if (!this.enabled || this.stopped || this.scanTimer !== undefined) return;
+    if (!this.enabled || this.stopped) return;
+    if (this.translating) {
+      this.rescanRequested = true;
+      return;
+    }
+    if (this.scanTimer !== undefined) return;
     this.scanTimer = window.setTimeout(() => {
       this.scanTimer = undefined;
       void this.scanAndTranslate();
@@ -166,12 +209,16 @@ export class PageTranslationEngine {
   private async scanAndTranslate(): Promise<void> {
     if (!this.enabled || this.translating || this.stopped) return;
     this.translating = true;
+    const scanVersion = this.translationVersion;
+    const requestedLanguage = this.targetLanguage;
     try {
       await this.waitForFonts();
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       const recordCountBeforeCollect = this.records.size;
       await this.collectRecords();
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       const pending = [...this.records.values()].filter(
-        (record) => record.translatedTarget !== this.targetLanguage,
+        (record) => record.translatedTarget !== requestedLanguage,
       );
       if (pending.length === 0) {
         if (this.records.size !== recordCountBeforeCollect) {
@@ -180,32 +227,52 @@ export class PageTranslationEngine {
         return;
       }
       await this.reportStatus("translating", this.records.size);
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       const results = await this.translateBatch(
         pending.map((record) => ({
           anchorId: record.anchorId,
           source: record.source,
           component: record.component,
         })),
-        this.targetLanguage,
+        requestedLanguage,
       );
-      const resultById = new Map(results.map((result) => [result.anchorId, result]));
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
+      const resultById = correlateTranslationResults(
+        pending.map((record) => record.anchorId),
+        results,
+      );
       for (const record of pending) {
         const result = resultById.get(record.anchorId);
-        if (!result) continue;
+        if (!result) {
+          throw new Error("Translation backend returned an incomplete or mismatched response");
+        }
         record.translation = result;
-        record.translatedTarget = this.targetLanguage;
+        record.translatedTarget = requestedLanguage;
         this.renderRecord(record);
       }
       await this.reportStatus("rendered", this.records.size);
     } catch (error) {
-      await this.reportStatus(
-        "error",
-        this.records.size,
-        error instanceof Error ? error.message : "Translation failed",
-      );
+      if (this.isCurrentTranslation(scanVersion, requestedLanguage)) {
+        await this.reportStatus(
+          "error",
+          this.records.size,
+          error instanceof Error ? error.message : "Translation failed",
+        );
+      }
     } finally {
       this.translating = false;
+      if (this.rescanRequested) {
+        this.rescanRequested = false;
+        this.scheduleScan();
+      }
     }
+  }
+
+  private isCurrentTranslation(scanVersion: number, requestedLanguage: TargetLanguage): boolean {
+    return this.enabled
+      && !this.stopped
+      && this.translationVersion === scanVersion
+      && this.targetLanguage === requestedLanguage;
   }
 
   private async collectRecords(): Promise<void> {
@@ -260,20 +327,12 @@ export class PageTranslationEngine {
         suffix,
         component,
         mode: preserveModeFor(component, element),
-        originalStyle: element.getAttribute("style"),
-        originalTitle: element.getAttribute("title"),
-        originalAriaLabel: element.getAttribute("aria-label"),
         beforeGeometry: measureElement(element),
         slot,
       };
       const slots = this.sourceByElementSlot.get(element) ?? new Map<number, string>();
       slots.set(slot, source);
       this.sourceByElementSlot.set(element, slots);
-      this.styleSnapshots.set(element, {
-        style: record.originalStyle,
-        title: record.originalTitle,
-        ariaLabel: record.originalAriaLabel,
-      });
       this.recordByNode.set(node, record);
       const recordsForElement = this.recordByElementSlot.get(element) ?? new Map<number, SourceRecord>();
       recordsForElement.set(slot, record);
@@ -287,6 +346,7 @@ export class PageTranslationEngine {
     if (!fonts) return;
     this.fontSet = fonts;
     this.fontEventHandler = () => {
+      this.translationVersion += 1;
       for (const record of this.records.values()) record.translatedTarget = undefined;
       this.scheduleScan();
     };
@@ -332,11 +392,11 @@ export class PageTranslationEngine {
     }
 
     if (record.mode === "critical") {
-      record.element.style.overflow = "hidden";
-      record.element.style.textOverflow = "ellipsis";
-      record.element.style.whiteSpace = "nowrap";
-      record.element.title = record.translation.full;
-      record.element.setAttribute("aria-label", record.translation.full);
+      this.setOwnedStyle(record.element, "overflow", "hidden");
+      this.setOwnedStyle(record.element, "text-overflow", "ellipsis");
+      this.setOwnedStyle(record.element, "white-space", "nowrap");
+      this.setOwnedAttribute(record.element, "title", record.translation.full);
+      this.setOwnedAttribute(record.element, "aria-label", record.translation.full);
       record.displayedText = record.translation.full;
       record.fallback = "ellipsis-tooltip";
       return;
@@ -350,11 +410,11 @@ export class PageTranslationEngine {
     }
 
     this.setNodeText(record, record.translation.full);
-    record.element.style.overflow = "hidden";
-    record.element.style.textOverflow = "ellipsis";
-    record.element.style.whiteSpace = "nowrap";
-    record.element.title = record.translation.full;
-    record.element.setAttribute("aria-label", record.translation.full);
+    this.setOwnedStyle(record.element, "overflow", "hidden");
+    this.setOwnedStyle(record.element, "text-overflow", "ellipsis");
+    this.setOwnedStyle(record.element, "white-space", "nowrap");
+    this.setOwnedAttribute(record.element, "title", record.translation.full);
+    this.setOwnedAttribute(record.element, "aria-label", record.translation.full);
     record.displayedText = record.translation.full;
     record.fallback = "ellipsis-tooltip";
   }
@@ -373,9 +433,9 @@ export class PageTranslationEngine {
     }
 
     const height = `${record.beforeGeometry.height}px`;
-    record.element.style.boxSizing = "border-box";
-    record.element.style.height = height;
-    record.element.style.maxHeight = height;
+    this.setOwnedStyle(record.element, "box-sizing", "border-box");
+    this.setOwnedStyle(record.element, "height", height);
+    this.setOwnedStyle(record.element, "max-height", height);
     return true;
   }
 
@@ -384,15 +444,15 @@ export class PageTranslationEngine {
 
     const width = `${record.beforeGeometry.width}px`;
     const computed = window.getComputedStyle(record.element);
-    if (computed.display === "inline") record.element.style.display = "inline-block";
-    record.element.style.boxSizing = "border-box";
-    record.element.style.width = width;
-    record.element.style.maxWidth = width;
+    if (computed.display === "inline") this.setOwnedStyle(record.element, "display", "inline-block");
+    this.setOwnedStyle(record.element, "box-sizing", "border-box");
+    this.setOwnedStyle(record.element, "width", width);
+    this.setOwnedStyle(record.element, "max-width", width);
 
     if (["navigation", "button", "tab", "badge"].includes(record.component)) {
       const height = `${record.beforeGeometry.height}px`;
-      record.element.style.height = height;
-      record.element.style.maxHeight = height;
+      this.setOwnedStyle(record.element, "height", height);
+      this.setOwnedStyle(record.element, "max-height", height);
     }
   }
 
@@ -412,19 +472,80 @@ export class PageTranslationEngine {
     if (sourcesForElement?.size === 0) this.sourceByElementSlot.delete(record.element);
   }
 
+  private getPresentationState(element: HTMLElement): PresentationState {
+    const existing = this.presentationStates.get(element);
+    if (existing) return existing;
+    const state: PresentationState = {
+      styles: new Map(),
+      attributes: new Map(),
+    };
+    this.presentationStates.set(element, state);
+    return state;
+  }
+
+  private setOwnedStyle(element: HTMLElement, property: string, value: string, priority = ""): void {
+    const state = this.getPresentationState(element);
+    const existing = state.styles.get(property);
+    if (existing) {
+      existing.appliedValue = value;
+      existing.appliedPriority = priority;
+    } else {
+      const originalValue = element.style.getPropertyValue(property);
+      const originalPriority = element.style.getPropertyPriority(property);
+      if (originalValue === value && originalPriority === priority) return;
+      state.styles.set(property, {
+        originalValue,
+        originalPriority,
+        appliedValue: value,
+        appliedPriority: priority,
+      });
+    }
+    element.style.setProperty(property, value, priority);
+  }
+
+  private setOwnedAttribute(
+    element: HTMLElement,
+    attribute: "title" | "aria-label",
+    value: string,
+  ): void {
+    const state = this.getPresentationState(element);
+    const existing = state.attributes.get(attribute);
+    if (existing) {
+      existing.appliedValue = value;
+    } else {
+      const originalValue = element.getAttribute(attribute);
+      if (originalValue === value) return;
+      state.attributes.set(attribute, { originalValue, appliedValue: value });
+    }
+    element.setAttribute(attribute, value);
+  }
+
   private restorePresentation(record: SourceRecord): void {
-    const snapshot = this.styleSnapshots.get(record.element);
-    if (!snapshot) return;
-    if (snapshot.style === null) record.element.removeAttribute("style");
-    else record.element.setAttribute("style", snapshot.style);
-    if (snapshot.title === null) record.element.removeAttribute("title");
-    else record.element.setAttribute("title", snapshot.title);
-    if (snapshot.ariaLabel === null) record.element.removeAttribute("aria-label");
-    else record.element.setAttribute("aria-label", snapshot.ariaLabel);
+    const state = this.presentationStates.get(record.element);
+    if (!state) return;
+
+    for (const [property, mutation] of state.styles) {
+      const currentValue = record.element.style.getPropertyValue(property);
+      const currentPriority = record.element.style.getPropertyPriority(property);
+      if (currentValue !== mutation.appliedValue || currentPriority !== mutation.appliedPriority) continue;
+      if (mutation.originalValue === "") record.element.style.removeProperty(property);
+      else record.element.style.setProperty(property, mutation.originalValue, mutation.originalPriority);
+    }
+
+    for (const [attribute, mutation] of state.attributes) {
+      if (record.element.getAttribute(attribute) !== mutation.appliedValue) continue;
+      if (mutation.originalValue === null) record.element.removeAttribute(attribute);
+      else record.element.setAttribute(attribute, mutation.originalValue);
+    }
+
+    state.styles.clear();
+    state.attributes.clear();
   }
 
   private restoreOriginal(): void {
     this.enabled = false;
+    this.translationVersion += 1;
+    this.rescanRequested = false;
     for (const record of this.records.values()) {
       if (record.node.isConnected) record.node.data = `${record.prefix}${record.source}${record.suffix}`;
       this.restorePresentation(record);
@@ -436,7 +557,10 @@ export class PageTranslationEngine {
   }
 
   private installRouteHooks(): void {
-    const notify = () => this.scheduleScan();
+    const notify = () => {
+      this.translationVersion += 1;
+      this.scheduleScan();
+    };
     window.addEventListener("popstate", notify);
     window.addEventListener("hashchange", notify);
     this.originalPushState = history.pushState;
