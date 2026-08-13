@@ -160,7 +160,7 @@ const server = createServer(async (request, response) => {
     request.setEncoding("utf8");
     for await (const chunk of request) raw += chunk;
     const requestedMode = JSON.parse(raw).mode;
-    if (!["none", "reject-422", "malformed-502", "timeout"].includes(requestedMode)) {
+    if (!["none", "reject-422", "malformed-502", "timeout", "delay-success"].includes(requestedMode)) {
       writeJson(request, response, 400, { code: "invalid_request", error: "Unsupported test failure mode" }, requestId);
       return;
     }
@@ -190,6 +190,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (activeFailureMode === "timeout") await sleep(15_000);
+    if (activeFailureMode === "delay-success") await sleep(350);
     // Keep the provider payload limited to the contract fields; no source-page
     // metadata or extension-owned fields are forwarded implicitly.
       const providerResults = await mockTranslateBatch(

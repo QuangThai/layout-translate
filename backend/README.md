@@ -51,7 +51,9 @@ client includes that opaque ID in diagnostics when the backend returns one;
 smoke reports retain IDs only, never request content. The synthetic
 failure-mode endpoint is test-only and activates only when
 `LAYOUT_TRANSLATE_ALLOW_TEST_FAILURE_MODE=true`; it must never be enabled on a
-shared or production backend.
+shared or production backend. The local endpoint also supports a bounded
+`delay-success` response for deterministic stale-request and language-switch
+race tests.
 For an approved offline calibration replay only, the runner may set
 `LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES` to a temporary JSON object mapping
 source strings to reviewed `{ en, vi, compact? }` values. This is a deterministic

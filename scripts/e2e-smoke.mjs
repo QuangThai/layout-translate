@@ -579,6 +579,77 @@ async function main() {
       "translation recovery after backend authorization is restored",
     );
 
+    await fetch(`http://127.0.0.1:${backendPort}/__test/failure-mode`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "delay-success" }) });
+    await evaluate(cdp, popup, "document.querySelector('button.restore-button').click()");
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === '会社情報'"),
+      "delayed translation source reset",
+    );
+    await waitFor(
+      () => evaluate(cdp, popup, "document.querySelector('button.toggle')?.getAttribute('aria-pressed') === 'false' && !document.querySelector('button.toggle')?.disabled"),
+      "delayed translation restore state",
+    );
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    await waitFor(
+      async () => (await getExtensionState())?.status === "translating",
+      "delayed translation request started",
+    );
+    await sleep(100);
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    await waitFor(
+      async () => {
+        const state = await getExtensionState();
+        return state?.enabled === false && state.status === "restored" ? state : false;
+      },
+      "restore while translation request is pending",
+    );
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === '会社情報'"),
+      "restore wins over delayed translation response",
+    );
+    await sleep(500);
+    const disabledDuringRequest = await evaluate(
+      cdp,
+      fixture,
+      "[...document.querySelectorAll('nav a')].map((element) => element.textContent).join('|')",
+    );
+    const disabledDuringRequestState = await getExtensionState();
+    assert(disabledDuringRequest === "会社情報|お問い合わせはこちら|利用規約", "stale delayed response cannot re-render after restore");
+    assert(disabledDuringRequestState?.enabled === false && disabledDuringRequestState.status === "restored", "stale delayed response cannot overwrite restored state");
+
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    await waitFor(
+      async () => (await getExtensionState())?.status === "translating",
+      "delayed language-race request started",
+    );
+    await sleep(100);
+    await evaluate(cdp, popup, "document.querySelector('.language-switch button:nth-child(2)').click()");
+    await waitFor(
+      () => evaluate(cdp, popup, "document.querySelector('.language-switch button:nth-child(2)')?.getAttribute('aria-pressed') === 'true'"),
+      "Vietnamese selected during delayed request",
+    );
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Thông tin công ty'"),
+      "new language wins over delayed English response",
+    );
+
+    await fetch(`http://127.0.0.1:${backendPort}/__test/failure-mode`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "none" }) });
+    await evaluate(cdp, popup, "document.querySelector('button.restore-button').click()");
+    await waitFor(
+      () => evaluate(cdp, popup, "document.querySelector('button.toggle')?.getAttribute('aria-pressed') === 'false' && !document.querySelector('button.toggle')?.disabled"),
+      "concurrency proof cleanup restore state",
+    );
+    await evaluate(cdp, popup, "document.querySelector('.language-switch button:nth-child(1)').click()");
+    await waitFor(
+      () => evaluate(cdp, popup, "document.querySelector('.language-switch button:nth-child(1)')?.getAttribute('aria-pressed') === 'true' && !document.querySelector('.language-switch button:nth-child(1)')?.disabled"),
+      "concurrency proof cleanup language state",
+    );
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Company'"),
+      "normal translation after concurrency proof",
+    );
+
     const englishFocus = await evaluate(
       cdp,
       fixture,
@@ -777,6 +848,42 @@ async function main() {
     await captureScreenshot(cdp, fixture, screenshotPaths.vietnamese);
     screenshotCaptured.vietnamese = true;
 
+    await evaluate(
+      cdp,
+      fixture,
+      `(() => {
+        const target = document.querySelector('#route-button');
+        if (!target) return false;
+        target.style.backgroundColor = 'rgb(12, 34, 56)';
+        target.style.width = '120px';
+        target.title = 'Page-owned tooltip';
+        target.setAttribute('aria-label', 'Page-owned action');
+        return true;
+      })()`,
+    );
+    await evaluate(cdp, popup, "document.querySelector('button.restore-button').click()");
+    const ownershipRestored = await waitFor(
+      () => evaluate(
+        cdp,
+        fixture,
+        `(() => {
+          const target = document.querySelector('#route-button');
+          return target?.textContent === '確認して送信'
+            && target?.title === 'Page-owned tooltip'
+            && target?.getAttribute('aria-label') === 'Page-owned action'
+            && target?.style.backgroundColor === 'rgb(12, 34, 56)'
+            && target?.style.width === '120px';
+        })()`,
+      ),
+      "page-owned presentation survives restore",
+    );
+    assert(ownershipRestored === true, "restore preserves page-owned style, title, and aria-label changes");
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Thông tin công ty' && document.querySelector('#route-button')?.textContent === 'Xem lại và gửi'"),
+      "translation resumes after ownership restore proof",
+    );
+
     await evaluate(cdp, fixture, "document.querySelector('#route-button').click()");
     await waitFor(
       () => evaluate(cdp, fixture, "document.querySelector('#dynamic-copy')?.textContent === 'Thông báo mới'"),
@@ -871,6 +978,7 @@ async function main() {
         escapePreservedFallback: interactionEvidence.escapePreservedFallback,
         touchActivationVerified: interactionEvidence.touchActivationVerified,
         accessibilityFallbackVerified: true,
+        presentationOwnershipVerified: ownershipRestored === true,
         screenshots: screenshotCaptured,
         screenshotFiles,
         dynamicSpaTranslatedAndRestored: true,
