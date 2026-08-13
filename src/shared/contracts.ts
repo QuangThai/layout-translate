@@ -6,6 +6,7 @@ export const MAX_TRANSLATION_BATCH_ITEMS = 50;
 export type TranslationStatus =
   | "inactive"
   | "scanning"
+  | "unsupported"
   | "translating"
   | "rendered"
   | "restored"

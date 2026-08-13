@@ -38,6 +38,8 @@ does not promise zero-pixel layout change on every website.
 ## Behavioral invariants
 
 - Original source text and source metadata remain the source of truth.
+- Source language must be confidently detected as Japanese before a translation
+  batch is sent; ambiguous or non-Japanese pages remain unchanged.
 - Language switching never translates from an already translated DOM value.
 - Translation preserves the original visual anchor as closely as practical.
 - Compact UI uses component-aware hard-preserve constraints.
@@ -67,6 +69,7 @@ The technical spike must produce repeatable evidence for:
 - coherent card/grid geometry;
 - idempotent handling of framework-style re-rendering;
 - automatic translation after SPA route changes;
+- fail-closed source-language detection with no batch for non-Japanese pages;
 - deterministic full-to-compact-to-tooltip fallback;
 - reproducible geometry metrics and screenshots.
 
