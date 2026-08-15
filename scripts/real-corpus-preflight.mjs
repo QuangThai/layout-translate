@@ -2,11 +2,12 @@ import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const REAL_CORPUS_MANIFEST_SCHEMA = "layout-translate/real-corpus-manifest/v1";
+export const REAL_CORPUS_MANIFEST_SCHEMA = "layout-translate/real-corpus-manifest/v2";
 export const REAL_CORPUS_PREFLIGHT_SCHEMA = "layout-translate/real-corpus-preflight/v1";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const textExtensions = new Set([".css", ".html", ".htm", ".js", ".json", ".mjs", ".svg", ".ts", ".tsx"]);
+const realCorpusContentClasses = new Set(["synthetic-only", "public-sanitized"]);
 const externalRequestPattern = /\b(?:https?:)?\/\/[A-Za-z0-9.-]+(?:[/:?#][^\s"'<>)]*)?/iu;
 const credentialPattern = /\b(?:authorization|bearer|api[-_]?key|access[-_]?token|client[-_]?secret|private[-_]?key|set[-_]?cookie|password)\b\s*[:=]/iu;
 const executablePattern = /<script\b|\bon[a-z][a-z0-9-]*\s*=/iu;
@@ -187,11 +188,11 @@ function validateManifestShape(root, manifest, errors, files, mode) {
     !isRecord(sanitization)
     || sanitization.reviewed !== true
     || sanitization.removedExternalRequests !== true
-    || sanitization.syntheticDataOnly !== true
+    || !realCorpusContentClasses.has(sanitization.contentClass)
     || !hasText(sanitization.reviewedBy)
     || !isValidDate(sanitization.reviewedAt)
   ) {
-    addError(errors, "sanitization_incomplete", "sanitization must be reviewed, synthetic-only, and free of external requests");
+    addError(errors, "sanitization_incomplete", "sanitization must be reviewed, declare contentClass as synthetic-only or public-sanitized, and be free of external requests");
   }
 
   if (!Array.isArray(manifest.viewports) || manifest.viewports.length === 0 || manifest.viewports.some((viewport) => (
