@@ -137,6 +137,19 @@ $env:LAYOUT_TRANSLATE_PROVIDER_MODEL = "<model-id>"
 npm run backend:mock
 ```
 
+Replay the real-provider journey end to end with:
+
+```bash
+npm run live:smoke -- --model=<model-id>
+```
+
+It reads `OPENAI_API_KEY` from `.env` or the environment, starts the backend in
+provider mode, serves the local Japanese fixture, drives the built extension
+through EN, VI, and restore, and writes geometry, latency, rendered samples, and
+screenshots to `.output/live-provider-report.json` and `.output/live-provider/`.
+It is developer verification, not a gate: it asserts the journey completes and
+reports what happened, rather than enforcing a tolerance.
+
 There is no default model: provider mode refuses to start without an explicit
 model ID, and incomplete configuration is a startup error rather than a silent
 fall back to mock output. Deterministic fixture overrides are ignored in this

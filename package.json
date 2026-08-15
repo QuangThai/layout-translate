@@ -16,6 +16,7 @@
     "test": "vitest run --environment node",
     "e2e:smoke": "npm run build && npm run framework:build && node scripts/e2e-smoke.mjs",
     "backend:mock": "tsx backend/src/mock-server.ts",
+    "live:smoke": "npm run build && node scripts/live-provider-smoke.mjs",
     "backend:smoke": "node scripts/backend-contract-smoke.mjs",
     "real-corpus:preflight": "node scripts/real-corpus-preflight.mjs",
     "real-corpus:calibration": "node scripts/real-corpus-calibration.mjs",
