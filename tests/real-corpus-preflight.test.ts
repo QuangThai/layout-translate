@@ -13,12 +13,12 @@ function writeValidCorpus(root: string) {
   writeFileSync(join(root, "page.html"), "<!doctype html><main><h1>Sanitized page</h1></main>\n", "utf8");
   writeFileSync(join(root, "styles.css"), "main { display: grid; }\n", "utf8");
   writeFileSync(join(root, "manifest.json"), JSON.stringify({
-    schema: "layout-translate/real-corpus-manifest/v1",
+    schema: "layout-translate/real-corpus-manifest/v2",
     status: "approved",
     snapshotId: "snapshot-001",
     source: { kind: "sanitized-export", reference: "internal-review-001", capturedAt: "2026-08-13T00:00:00Z" },
     allowedUse: { purpose: "technical-spike-calibration", approvedBy: "product-owner", approvedAt: "2026-08-13T00:00:00Z" },
-    sanitization: { reviewed: true, reviewedBy: "privacy-reviewer", reviewedAt: "2026-08-13T00:00:00Z", removedExternalRequests: true, syntheticDataOnly: true, notes: null },
+    sanitization: { reviewed: true, reviewedBy: "privacy-reviewer", reviewedAt: "2026-08-13T00:00:00Z", removedExternalRequests: true, contentClass: "synthetic-only", notes: null },
     viewports: [{ name: "desktop", width: 1280, height: 900, pageOverflowPolicy: "hard" }],
     calibration: {
       targets: [{ name: "main", anchorSelector: "main", siblingSelector: "body", desktopHardGate: true }],
@@ -47,6 +47,30 @@ describe("real-corpus preflight", () => {
     const result = validateRealCorpus(root);
     expect(result).toMatchObject({ ok: true, manifest: { status: "approved", snapshotId: "snapshot-001" } });
     expect(result.errors).toEqual([]);
+  });
+
+  it("accepts a reviewed public-sanitized corpus", () => {
+    const root = temporaryCorpus();
+    writeValidCorpus(root);
+    const manifestPath = join(root, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sanitization.contentClass = "public-sanitized";
+    writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");
+    const result = validateRealCorpus(root);
+    expect(result).toMatchObject({ ok: true, manifest: { status: "approved", snapshotId: "snapshot-001" } });
+    expect(result.errors).toEqual([]);
+  });
+
+  it("rejects an unknown sanitization content class", () => {
+    const root = temporaryCorpus();
+    writeValidCorpus(root);
+    const manifestPath = join(root, "manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.sanitization.contentClass = "provider-export";
+    writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");
+    const result = validateRealCorpus(root);
+    expect(result.ok).toBe(false);
+    expect(result.errors.map((error) => error.code)).toContain("sanitization_incomplete");
   });
 
   it("allows a baseline-only corpus without translation references", () => {

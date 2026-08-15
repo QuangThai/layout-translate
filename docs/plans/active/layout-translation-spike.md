@@ -102,9 +102,12 @@ Out of scope:
   without widening the provisional hard-shift target.
 - [ ] Validate the technical-spike exit gate.
 - [ ] Run real-corpus calibration from a product-approved sanitized snapshot.
-  A repository-generated synthetic `page.html`/`styles.css` sample now exists
-  for offline tooling, but the approved real snapshot, assets, and completed
-  approval fields are still missing. The open decisions and handoff fields are captured in
+  A snapshot derived from a public third-party home page was prepared and then
+  withdrawn: the repository holds no right to retain or replay another company's
+  page content, so source ownership is a precondition rather than a later review
+  step. The checked-in corpus stays repository-generated synthetic and pending.
+  The runner itself is no longer the blocker; corpus authority and the remaining
+  policy decisions are. Both are captured in
   [`docs/decisions/0004-real-corpus-calibration-approval.md`](../../decisions/0004-real-corpus-calibration-approval.md).
 - [x] Add the offline fail-closed `npm run real-corpus:preflight` preparation
   check; it rejects the pending template without starting Chrome or making
@@ -116,6 +119,11 @@ Out of scope:
   modes, with `both` running the two passes and translation references gated by
   explicit human-review metadata. The checked-in synthetic corpus remains
   pending, so no approval or real-corpus evidence is claimed.
+- [x] Make the real-corpus manifest classify content explicitly as
+  `synthetic-only` or `public-sanitized`, so a snapshot derived from a real page
+  cannot be mislabeled as synthetic; both classes stay approval-gated.
+- [x] Rehearse the real-corpus runner end to end against a throwaway synthetic
+  corpus outside the repository, proving the tooling is not the blocker.
 - [x] Run browser-observable accessibility validation for constrained fallback;
   screen-reader support remains outside this pass. The E2E smoke now proves
   keyboard focus/native tab order, mouse activation, Escape preservation, and
@@ -134,6 +142,14 @@ Out of scope:
 - [x] Complete browser failure matrix for synthetic 422 rejection, 502
   provider-invalid response, and request timeout; every mode preserves source
   and avoids partial presentation mutation.
+- [x] Add transaction guards for delayed translation responses, restore,
+  language switches, route/font invalidation, and incomplete batch correlation;
+  delayed browser proof covers restore and EN-to-VI races without stale renders.
+- [x] Make presentation restoration ownership-aware; style declarations and
+  title/ARIA attributes are restored only while their current values still
+  match extension-applied values, preserving page-owned mutations.
+- [x] Detect Japanese source before requesting translation so non-Japanese
+  records are skipped instead of sent to the backend.
 
 ## Decisions
 
@@ -154,12 +170,25 @@ Out of scope:
   sanitized HTML/CSS/font snapshot and browser-observable accessibility checks.
   The repository currently contains no such real-corpus snapshot; do not
   substitute an unapproved company page or infer a production tolerance.
+- 2026-08-13: Treat each in-flight translation batch as a versioned
+  transaction. Restore, target-language, route, font, and DOM invalidation
+  discard stale results; a requested rescan runs after the current request
+  settles.
+- 2026-08-13: Treat presentation declarations as extension-owned only for the
+  values this engine applied. Restore removes or reverts those declarations
+  only when the page has not changed them, so host-page mutations remain
+  authoritative.
+- 2026-08-15: Require corpus source ownership before sanitization review. A
+  page the repository has no right to retain or replay cannot become an
+  approved corpus no matter how well it is sanitized, so a third-party public
+  page is not an acceptable substitute for a product-owned one.
 
 ## Validation
 
-- Focused proof: `npm test` passed; 3 test files and 13 tests passed, including
-  overflow tolerance, sibling-shift helper, and compact badge candidate
-  assertions.
+- Focused proof: `npm test` passed; 9 test files and 45 tests passed, including
+  overflow tolerance, sibling-shift helper, compact badge candidates,
+  delayed-response correlation guards, source-language detection, and
+  real-corpus manifest v2 content-class validation.
 - Type proof: `npm run typecheck` passed after WXT generated its types.
 - Build proof: `npm run build` passed and produced the Chrome MV3 bundle with
   background, popup, and translate content-script outputs.
@@ -219,6 +248,19 @@ Out of scope:
   stable; the critical action remained in the native tab order and retained its
   full-text tooltip; the two-card grid and fixed-layout table reported no page
   or table overflow; and EN/VI screenshots were written alongside the report.
+- Concurrency proof: `npm test` passed 35 tests, including fail-closed
+  translation-result correlation. `npm run e2e:smoke` passed with the mock
+  backend's bounded `delay-success` mode: restoring while a request was pending
+  left Japanese source and restored state intact, and switching EN-to-VI while
+  the English request was pending rendered Vietnamese rather than the stale
+  English response. The rerun reported zero page, console, or browser-log
+  errors and cleaned up its owned processes/profile.
+- Presentation ownership proof: the browser smoke changed a constrained
+  translated control's background color, width, title, and ARIA label while
+  translation was active. Restore returned the Japanese text while preserving
+  all four page-owned values; translation then resumed normally. The same
+  E2E rerun passed with zero page, console, and browser-log errors, and the
+  report records `presentationOwnershipVerified: true`.
   The report schema remains `layout-translate/e2e-report/v1`, with page,
   console, and browser-log error counts at zero and temporary browser profile
   cleanup confirmed. The fixture server returns `204` for the browser's
@@ -281,6 +323,19 @@ Out of scope:
   remains measured but intentionally ungated; the latest maximum vertical
   anchor shift is `57.59375px`, so no mobile tolerance is being inferred.
 
+- Real-corpus runner rehearsal: the runner was exercised end to end against a
+  throwaway copy of the checked-in synthetic corpus placed outside the
+  repository, with harness-only approval fields. Preflight passed, and
+  `--mode=both` passed all 4 cases (baseline and translation at desktop and
+  mobile) with `gateFailures: []` and `screenshotFailures: []`. Every anchor and
+  sibling shift was `0px` in EN and VI at the `5px` provisional threshold, and
+  `pageOverflow` was `false` everywhere. Element-level overflow offenders were
+  identical before and after translation (1 on desktop, 20 on mobile), so they
+  come from the fixture's own mobile table-scroll container and visually-hidden
+  caption rather than from translation. This proves runner mechanics only; the
+  repository corpus stays `pending-review` and no real-corpus evidence is
+  claimed.
+
 ## Result
 
 Active. The fixture-only extension and mock-backend scaffold passes typecheck,
@@ -298,8 +353,10 @@ visual-tolerance policy, and real assistive-tech/touch interaction calibration.
 The provider benchmark is authorized only for synthetic cases through an
 approved backend; the gateway client and candidate model list remain pending.
 The immediate blocker is that no product-approved sanitized real-corpus
-snapshot is present in the repository; the new runner is implemented but
-preflight stops before Chrome until that snapshot and its translation-review
-authority exist. Browser-observable accessibility validation can proceed
-against an approved snapshot, while screen-reader validation is explicitly
-deferred from this pass.
+snapshot is present in the repository. The runner is implemented and now
+rehearsed end to end, so the gap is authority rather than tooling: a
+third-party public page was evaluated and rejected for lack of retention
+rights, and preflight stops before Chrome until a product-owned snapshot and
+its translation-review authority exist. Browser-observable accessibility
+validation can proceed against an approved snapshot, while screen-reader
+validation is explicitly deferred from this pass.

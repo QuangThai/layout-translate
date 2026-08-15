@@ -1,5 +1,5 @@
 {
-  "schema": "layout-translate/real-corpus-manifest/v1",
+  "schema": "layout-translate/real-corpus-manifest/v2",
   "status": "pending-review",
   "snapshotId": "synthetic-local-layout-v1",
   "source": {
@@ -17,7 +17,7 @@
     "reviewedBy": null,
     "reviewedAt": null,
     "removedExternalRequests": true,
-    "syntheticDataOnly": true,
+    "contentClass": "synthetic-only",
     "notes": "All page text and values were generated for offline layout validation; no product approval has been granted."
   },
   "viewports": [

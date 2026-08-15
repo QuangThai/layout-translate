@@ -17,7 +17,12 @@ fixtures/real-corpus/
 └── assets/
 ```
 
-`page.html` and `styles.css` are required for calibration. The manifest also
+`page.html` and `styles.css` are required for calibration. The manifest uses
+`layout-translate/real-corpus-manifest/v2` and records `sanitization.contentClass`
+as either `synthetic-only` or `public-sanitized`. The checked-in sample is
+`synthetic-only`; a snapshot derived from any real page, including a public one,
+must declare `public-sanitized` and must additionally record who holds the right
+to keep and replay that content in this repository. The manifest also
 declares `calibration.targets`, each with an anchor selector, sibling selector,
 and explicit desktop hard-gate flag. Each viewport also records whether
 horizontal page overflow is a hard gate or measurement-only; mobile policy

@@ -10,11 +10,17 @@ Proposed
 
 The synthetic calibration corpus and replayable browser evidence are passing,
 but the technical-spike exit gate requires calibration against a representative
-company page. The repository now contains a repository-generated synthetic
-sample for offline preflight and layout-tool development, but no product-
-approved real-corpus snapshot, provenance, sanitization review, or approval is
-present yet. This packet requests the decisions and artifact needed before the
+company page. This packet requests the decisions and artifact needed before the
 runner may consume a real corpus or produce real-corpus evidence.
+
+A candidate snapshot derived from a public third-party home page was prepared
+and then withdrawn. Automated marker checks passed, but the repository holds no
+right to retain, replay, or redistribute another company's page content, so the
+candidate could not become an approved corpus regardless of sanitization
+quality. Source ownership is therefore a precondition, not a later review step:
+an acceptable snapshot must come from a page the product owner owns or is
+licensed to use. The checked-in corpus stays repository-generated synthetic and
+remains `pending-review`.
 
 This is an approval packet, not an accepted product policy. Blank fields and
 unresolved alternatives must remain unresolved until the product owner signs
@@ -29,10 +35,10 @@ does not bypass product approval.
 
 | Decision | Choice to record | Current state |
 | --- | --- | --- |
-| Corpus owner and source | Named product owner, source kind/reference, and allowed use | Open |
+| Corpus owner and source | Named product owner, source kind/reference, and allowed use | Open; a third-party public page was evaluated and rejected for lack of retention/redistribution rights |
 | Calibration purpose | Geometry-only evidence, or geometry plus human-reviewed EN/VI references | Both modes implemented; real-corpus choice remains open |
 | Representative page | One sanitized page and the layout risks it represents | Open |
-| Measurement targets | Named anchor/sibling selectors and which targets are desktop hard gates | Open for real corpus; synthetic sample only has examples |
+| Measurement targets | Named anchor/sibling selectors and which targets are desktop hard gates | Open for a real corpus; the synthetic sample only carries examples |
 | Viewports | Exact desktop/mobile widths and heights plus page-overflow policy per viewport | Open |
 | Desktop tolerance | Keep the provisional `<= 5px` spike target, or replace it with an approved target | Provisional `<= 5px` only |
 | Mobile tolerance | Numeric gate, qualitative review, or measured-but-ungated | Open |
@@ -51,6 +57,9 @@ After approval, place the snapshot under `fixtures/real-corpus/` with:
 - only local assets/fonts needed for offline replay;
 - no credentials, cookies, private data, tracking identifiers, external
   requests, or unnecessary executable behavior;
+- `sanitization.contentClass` set to either `synthetic-only` or
+  `public-sanitized`; a snapshot derived from any real page uses the latter and
+  additionally requires a recorded right to keep and replay that content;
 - a completed `manifest.json` containing the real snapshot ID, source,
   capture date, allowed use, viewports, calibration targets, file list,
   sanitization review, and product owner approval;
@@ -61,6 +70,12 @@ After approval, place the snapshot under `fixtures/real-corpus/` with:
 
 The manifest must describe facts that were actually reviewed. Do not invent
 provenance, approval, or `offlineReplay` claims.
+
+The content-class discriminator is part of manifest schema v2. It prevents a
+publicly derived sanitized snapshot from being mislabeled as synthetic-only
+while keeping both classes subject to the same human review and approval gate.
+Declaring `public-sanitized` does not by itself grant the right to keep the
+content; that right is part of the corpus-owner decision above.
 
 `calibration.targets` is a measurement contract, not a production tolerance:
 each target names the anchor and sibling selectors the runner will measure and
@@ -117,10 +132,14 @@ they are not interchangeable with the content-free synthetic trace reports.
 
 ## Follow-Up
 
-- Fill this packet from the actual approved snapshot; do not substitute an
-  unapproved company page.
+- Supply a representative page the product owner owns or is licensed to use,
+  then fill this packet from that actual approved snapshot. Do not substitute a
+  third-party page; that route was already evaluated and rejected.
 - Run and review the separate fail-closed real-corpus runner only after the
   artifact and policy fields above are complete; its implementation is present
-  but the checked-in pending sample must remain blocked.
+  but the checked-in pending synthetic sample must remain blocked.
+- The runner mechanics are already rehearsed end to end against a throwaway
+  synthetic corpus outside the repository, so the remaining blocker is corpus
+  authority and policy, not tooling.
 - Keep provider benchmark/model selection blocked until its independent backend,
   provider, and human-review authority is accepted.
