@@ -134,9 +134,11 @@ Out of scope:
   which drives the built extension against the local Japanese fixture through a
   real provider and reports geometry, latency, and rendered samples without
   enforcing a tolerance.
-- [ ] Reduce real-provider translation latency; the first observed run needed
-  15-20 seconds to render a 62-anchor page because batches are issued
-  sequentially and nothing is rendered until a batch returns.
+- [x] Reduce real-provider translation latency. Repeated strings now collapse
+  into one request item, batches are smaller, up to four are in flight at once,
+  each renders as it arrives, and visible content is translated first. A failed
+  batch reverts the whole pass so progressive rendering never leaves the page
+  half translated.
 - [ ] Improve Vietnamese compact candidates; Vietnamese pushed more elements
   into the ellipsis fallback than English on the same page, and the brand label
   was clipped even though it should not be translated at all.
@@ -197,6 +199,10 @@ Out of scope:
   values this engine applied. Restore removes or reverts those declarations
   only when the page has not changed them, so host-page mutations remain
   authoritative.
+- 2026-08-15: Render translated batches as they arrive rather than waiting for
+  the whole page, and treat a failed batch as a whole-pass rollback. Progressive
+  rendering is what makes a real provider usable, and the rollback keeps the
+  existing guarantee that a failure never leaves partially translated output.
 - 2026-08-15: Separate live-site verification from corpus calibration. Opening a
   site in a developer's own browser stores and redistributes nothing, so it is
   governed by per-origin consent rather than by the corpus approval packet.
@@ -383,6 +389,23 @@ Out of scope:
   into the ellipsis fallback than English, including the brand label, which
   should not be translated at all. Latency and compact-candidate quality are
   now tracked as open work rather than claimed as solved.
+
+- Latency result: on the same fixture, model, and runner, full-page rendering
+  went from `15.0s` to `6.9s` in English and from `20.5s` to `8.0s` in
+  Vietnamese, and the first visible text now lands well before the page
+  finishes because batches render as they arrive. Geometry was unchanged by the
+  optimisation: hard regions still moved `0px`, the long-form region still grew
+  `47.09px`, no page overflow appeared, and restore still returned every
+  measured shift to `0px`. `npm test` (12 files, 64 tests), `npm run e2e:smoke`,
+  `npm run calibration:smoke` (6/6 cases), and `npm run backend:smoke` all
+  passed afterwards.
+- Observer regression found and fixed during that work: progressive rendering
+  made the engine's own text writes look like page mutations, so the observer
+  invalidated the pass that had just produced them and the status never reached
+  `rendered`. Extension-owned text writes are now counted and matched against
+  the mutation records they produce, so only genuine page changes invalidate a
+  pass. A focused test also caught a later batch's failure replacing the first
+  one's diagnostic; the first failure is now the reported one.
 
 ## Result
 

@@ -55,6 +55,96 @@ export type BatchTranslator = (
   targetLanguage: TargetLanguage,
 ) => Promise<TranslationResult[]>;
 
+// A real provider answers in seconds, so one request for the whole page leaves
+// it untouched for the sum of every batch. Smaller batches issued together let
+// the first visible text land while the rest is still in flight.
+export const TRANSLATION_CHUNK_SIZE = 12;
+export const TRANSLATION_CONCURRENCY = 4;
+
+interface TranslationGroup {
+  request: { anchorId: string; source: string; component: ReturnType<typeof classifyElement> };
+  records: SourceRecord[];
+}
+
+export interface GroupableRecord {
+  anchorId: string;
+  source: string;
+  component: ReturnType<typeof classifyElement>;
+  /** Viewport-relative top edge; `null` when the element is not laid out. */
+  top: number | null;
+}
+
+export function chunkItems<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let offset = 0; offset < items.length; offset += size) {
+    chunks.push(items.slice(offset, offset + size));
+  }
+  return chunks;
+}
+
+/**
+ * Collapses repeated strings into one request item and orders the work so what
+ * the reader is already looking at is translated first. A page usually repeats
+ * labels across navigation, tables, and cards, and every duplicate would
+ * otherwise cost a separate provider translation.
+ */
+export function buildTranslationGroups<T extends GroupableRecord>(
+  records: readonly T[],
+  viewportHeight: number,
+): Array<{ request: { anchorId: string; source: string; component: T["component"] }; members: T[] }> {
+  const groups = new Map<string, { request: { anchorId: string; source: string; component: T["component"] }; members: T[]; order: number }>();
+  for (const record of records) {
+    const key = `${record.component} ${record.source}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.members.push(record);
+      continue;
+    }
+    const top = record.top;
+    const visible = top !== null && top >= 0 && top <= viewportHeight;
+    groups.set(key, {
+      request: { anchorId: record.anchorId, source: record.source, component: record.component },
+      members: [record],
+      order: visible ? top : viewportHeight + Math.abs(top ?? Number.MAX_SAFE_INTEGER / 2),
+    });
+  }
+  return [...groups.values()]
+    .sort((left, right) => left.order - right.order)
+    .map(({ request, members }) => ({ request, members }));
+}
+
+/**
+ * Runs chunks with a bounded number in flight. Workers never reject, so every
+ * in-flight chunk settles before the caller sees the failure and can undo the
+ * partial work.
+ */
+export async function runChunksWithConcurrency<T>(
+  chunks: readonly T[],
+  concurrency: number,
+  handler: (item: T) => Promise<void>,
+): Promise<void> {
+  let next = 0;
+  const state: { failure?: unknown } = {};
+  const worker = async (): Promise<void> => {
+    while (state.failure === undefined) {
+      const item = chunks[next++];
+      if (item === undefined) return;
+      try {
+        await handler(item);
+      } catch (error) {
+        // Keep the first failure: a later chunk failing for a knock-on reason
+        // would otherwise replace the diagnostic that explains the pass.
+        if (state.failure === undefined) state.failure = error ?? new Error("Translation chunk failed");
+        return;
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.max(1, Math.min(concurrency, chunks.length)) }, () => worker()),
+  );
+  if (state.failure !== undefined) throw state.failure;
+}
+
 export function correlateTranslationResults(
   expectedAnchorIds: readonly string[],
   results: readonly TranslationResult[],
@@ -108,6 +198,7 @@ export class PageTranslationEngine {
   private readonly recordByElementSlot = new WeakMap<HTMLElement, Map<number, SourceRecord>>();
   private readonly sourceByElementSlot = new WeakMap<HTMLElement, Map<number, string>>();
   private readonly presentationStates = new WeakMap<HTMLElement, PresentationState>();
+  private readonly ownWriteCounts = new WeakMap<Text, number>();
   private nextAnchor = 1;
   private observer?: MutationObserver;
   private scanTimer?: number;
@@ -132,7 +223,13 @@ export class PageTranslationEngine {
   start(): void {
     if (this.observer) return;
     this.stopped = false;
-    this.observer = new MutationObserver(() => {
+    this.observer = new MutationObserver((mutations) => {
+      let pageOwned = false;
+      for (const mutation of mutations) {
+        const own = mutation.type === "characterData" && this.isOwnWrite(mutation.target);
+        if (!own) pageOwned = true;
+      }
+      if (!pageOwned) return;
       this.translationVersion += 1;
       this.scheduleScan();
     });
@@ -233,28 +330,21 @@ export class PageTranslationEngine {
       }
       await this.reportStatus("translating", this.records.size);
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
-      const results = await this.translateBatch(
-        pending.map((record) => ({
-          anchorId: record.anchorId,
-          source: record.source,
-          component: record.component,
-        })),
-        requestedLanguage,
-      );
-      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
-      const resultById = correlateTranslationResults(
-        pending.map((record) => record.anchorId),
-        results,
-      );
-      for (const record of pending) {
-        const result = resultById.get(record.anchorId);
-        if (!result) {
-          throw new Error("Translation backend returned an incomplete or mismatched response");
-        }
-        record.translation = result;
-        record.translatedTarget = requestedLanguage;
-        this.renderRecord(record);
+      const rendered: SourceRecord[] = [];
+      try {
+        await this.translateGroups(
+          chunkItems(this.groupPendingRecords(pending), TRANSLATION_CHUNK_SIZE),
+          requestedLanguage,
+          scanVersion,
+          rendered,
+        );
+      } catch (error) {
+        // Batches now render as they arrive, so a later failure would otherwise
+        // leave the page half translated. Revert this pass instead.
+        for (const record of rendered) this.revertRecord(record);
+        throw error;
       }
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       await this.reportStatus("rendered", this.records.size);
     } catch (error) {
       if (this.isCurrentTranslation(scanVersion, requestedLanguage)) {
@@ -271,6 +361,64 @@ export class PageTranslationEngine {
         this.scheduleScan();
       }
     }
+  }
+
+  private groupPendingRecords(pending: readonly SourceRecord[]): TranslationGroup[] {
+    const viewportHeight = window.innerHeight || this.root.documentElement.clientHeight || 0;
+    return buildTranslationGroups(
+      pending.map((record) => ({
+        anchorId: record.anchorId,
+        source: record.source,
+        component: record.component,
+        top: record.element.isConnected ? record.element.getBoundingClientRect().top : null,
+        record,
+      })),
+      viewportHeight,
+    ).map((group) => ({
+      request: group.request,
+      records: group.members.map((member) => member.record),
+    }));
+  }
+
+  private async translateGroups(
+    chunks: readonly TranslationGroup[][],
+    requestedLanguage: TargetLanguage,
+    scanVersion: number,
+    rendered: SourceRecord[],
+  ): Promise<void> {
+    await runChunksWithConcurrency(chunks, TRANSLATION_CONCURRENCY, async (current) => {
+      const results = await this.translateBatch(
+        current.map((group) => group.request),
+        requestedLanguage,
+      );
+      // A stale response must not paint over a newer language or a restore.
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
+      const resultById = correlateTranslationResults(
+        current.map((group) => group.request.anchorId),
+        results,
+      );
+      for (const group of current) {
+        const result = resultById.get(group.request.anchorId);
+        if (!result) {
+          throw new Error("Translation backend returned an incomplete or mismatched response");
+        }
+        for (const record of group.records) {
+          record.translation = { anchorId: record.anchorId, full: result.full, compact: result.compact };
+          record.translatedTarget = requestedLanguage;
+          this.renderRecord(record);
+          rendered.push(record);
+        }
+      }
+    });
+  }
+
+  private revertRecord(record: SourceRecord): void {
+    if (record.node.isConnected) this.writeOwnedText(record.node, `${record.prefix}${record.source}${record.suffix}`);
+    this.restorePresentation(record);
+    record.translatedTarget = undefined;
+    record.translation = undefined;
+    record.fallback = undefined;
+    record.displayedText = undefined;
   }
 
   private isCurrentTranslation(scanVersion: number, requestedLanguage: TargetLanguage): boolean {
@@ -477,7 +625,27 @@ export class PageTranslationEngine {
   }
 
   private setNodeText(record: SourceRecord, value: string): void {
-    record.node.data = `${record.prefix}${value}${record.suffix}`;
+    this.writeOwnedText(record.node, `${record.prefix}${value}${record.suffix}`);
+  }
+
+  /**
+   * Writes text this engine owns and remembers the pending mutation record it
+   * will produce. Rendering now happens while later batches are still in
+   * flight, so an unmarked write would let the observer treat the engine's own
+   * output as a page change and invalidate the pass that produced it.
+   */
+  private writeOwnedText(node: Text, value: string): void {
+    if (node.data === value) return;
+    this.ownWriteCounts.set(node, (this.ownWriteCounts.get(node) ?? 0) + 1);
+    node.data = value;
+  }
+
+  private isOwnWrite(target: Node): boolean {
+    const pending = this.ownWriteCounts.get(target as Text);
+    if (!pending) return false;
+    if (pending === 1) this.ownWriteCounts.delete(target as Text);
+    else this.ownWriteCounts.set(target as Text, pending - 1);
+    return true;
   }
 
   private removeRecord(record: SourceRecord): void {
@@ -567,7 +735,7 @@ export class PageTranslationEngine {
     this.translationVersion += 1;
     this.rescanRequested = false;
     for (const record of this.records.values()) {
-      if (record.node.isConnected) record.node.data = `${record.prefix}${record.source}${record.suffix}`;
+      if (record.node.isConnected) this.writeOwnedText(record.node, `${record.prefix}${record.source}${record.suffix}`);
       this.restorePresentation(record);
       record.translatedTarget = undefined;
       record.translation = undefined;
