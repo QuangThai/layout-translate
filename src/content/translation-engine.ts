@@ -1,13 +1,21 @@
 import type {
   ContentCommand,
   ExtensionState,
+  PreserveMode,
   TargetLanguage,
   TranslationResult,
   TranslationStatus,
 } from "../shared/contracts";
-import { classifyElement, containsJapanese, preserveModeFor } from "../shared/classification";
+import { classifyElement, containsJapanese, isTranslationOptedOut, preserveModeFor } from "../shared/classification";
 import { hasOverflow, measureElement, type GeometrySnapshot } from "../shared/geometry";
 import { detectSourceLanguage, type SourceLanguage } from "../shared/language-detection";
+import {
+  availableTextWidth,
+  estimateCharacterBudget,
+  measureAverageCharacterWidth,
+  narrowestBudget,
+  needsCompactBudget,
+} from "../shared/text-fit";
 import { mockTranslateBatch } from "../shared/mock-translation";
 
 interface SourceRecord {
@@ -24,6 +32,7 @@ interface SourceRecord {
   displayedText?: string;
   fallback?: "full" | "compact" | "ellipsis-tooltip";
   beforeGeometry?: GeometrySnapshot;
+  compactMaxChars?: number;
   slot: number;
 }
 
@@ -51,7 +60,7 @@ export type ContentStatusReporter = (
 ) => void | Promise<void>;
 
 export type BatchTranslator = (
-  requests: Array<{ anchorId: string; source: string; component: ReturnType<typeof classifyElement> }>,
+  requests: Array<{ anchorId: string; source: string; component: ReturnType<typeof classifyElement>; compactMaxChars?: number }>,
   targetLanguage: TargetLanguage,
 ) => Promise<TranslationResult[]>;
 
@@ -62,7 +71,7 @@ export const TRANSLATION_CHUNK_SIZE = 12;
 export const TRANSLATION_CONCURRENCY = 4;
 
 interface TranslationGroup {
-  request: { anchorId: string; source: string; component: ReturnType<typeof classifyElement> };
+  request: { anchorId: string; source: string; component: ReturnType<typeof classifyElement>; compactMaxChars?: number };
   records: SourceRecord[];
 }
 
@@ -72,6 +81,7 @@ export interface GroupableRecord {
   component: ReturnType<typeof classifyElement>;
   /** Viewport-relative top edge; `null` when the element is not laid out. */
   top: number | null;
+  compactMaxChars?: number;
 }
 
 export function chunkItems<T>(items: readonly T[], size: number): T[][] {
@@ -91,7 +101,7 @@ export function chunkItems<T>(items: readonly T[], size: number): T[][] {
 export function buildTranslationGroups<T extends GroupableRecord>(
   records: readonly T[],
   viewportHeight: number,
-): Array<{ request: { anchorId: string; source: string; component: T["component"] }; members: T[] }> {
+): Array<{ request: { anchorId: string; source: string; component: T["component"]; compactMaxChars?: number }; members: T[] }> {
   const groups = new Map<string, { request: { anchorId: string; source: string; component: T["component"] }; members: T[]; order: number }>();
   for (const record of records) {
     const key = `${record.component} ${record.source}`;
@@ -110,7 +120,13 @@ export function buildTranslationGroups<T extends GroupableRecord>(
   }
   return [...groups.values()]
     .sort((left, right) => left.order - right.order)
-    .map(({ request, members }) => ({ request, members }));
+    .map(({ request, members }) => {
+      const budget = narrowestBudget(members.map((member) => member.compactMaxChars));
+      return {
+        request: budget === undefined ? request : { ...request, compactMaxChars: budget },
+        members,
+      };
+    });
 }
 
 /**
@@ -363,6 +379,18 @@ export class PageTranslationEngine {
     }
   }
 
+  /**
+   * Reports how many characters fit on one line of this element, so the
+   * provider can shorten to the box instead of the extension discovering the
+   * overflow afterwards and falling back to an ellipsis.
+   */
+  private measureCompactBudget(element: HTMLElement, mode: PreserveMode): number | undefined {
+    if (!needsCompactBudget(mode)) return undefined;
+    const averageCharacterWidth = measureAverageCharacterWidth(element);
+    if (averageCharacterWidth === null) return undefined;
+    return estimateCharacterBudget(availableTextWidth(element), averageCharacterWidth) ?? undefined;
+  }
+
   private groupPendingRecords(pending: readonly SourceRecord[]): TranslationGroup[] {
     const viewportHeight = window.innerHeight || this.root.documentElement.clientHeight || 0;
     return buildTranslationGroups(
@@ -371,6 +399,7 @@ export class PageTranslationEngine {
         source: record.source,
         component: record.component,
         top: record.element.isConnected ? record.element.getBoundingClientRect().top : null,
+        compactMaxChars: record.compactMaxChars,
         record,
       })),
       viewportHeight,
@@ -443,7 +472,7 @@ export class PageTranslationEngine {
 
     const contexts = nodes.map((node) => {
       const element = node.parentElement;
-      if (!element || !isVisible(element)) return undefined;
+      if (!element || !isVisible(element) || isTranslationOptedOut(element)) return undefined;
       const { core, prefix, suffix } = splitWhitespace(node.data);
       if (!core) return undefined;
       const slot = nodeSlot(node);
@@ -494,6 +523,7 @@ export class PageTranslationEngine {
         component,
         mode: preserveModeFor(component, element),
         beforeGeometry: measureElement(element),
+        compactMaxChars: this.measureCompactBudget(element, preserveModeFor(component, element)),
         slot,
       };
       const slots = this.sourceByElementSlot.get(element) ?? new Map<number, string>();

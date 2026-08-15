@@ -25,11 +25,16 @@ const protectedSourcePattern =
 
 export type DataClass = "normal" | "sensitive";
 
+export const MIN_COMPACT_MAX_CHARS = 1;
+export const MAX_COMPACT_MAX_CHARS = 200;
+
 export interface BackendTranslationItem {
   anchorId: string;
   source: string;
   component: ComponentKind;
   dataClass: DataClass;
+  /** Characters the compact variant may use before the source box overflows. */
+  compactMaxChars?: number;
 }
 
 export interface BackendTranslationRequest {
@@ -132,7 +137,7 @@ export function parseTranslationRequest(value: unknown, allowedOrigins: readonly
   const seenAnchorIds = new Set<string>();
   const items = value.items.map((item, index): BackendTranslationItem => {
     if (!isRecord(item)) throw new ContractError("invalid_request", 400, `items[${index}] must be an object`);
-    assertExactKeys(item, ["anchorId", "source", "component", "dataClass"], `items[${index}]`);
+    assertExactKeys(item, ["anchorId", "source", "component", "dataClass", "compactMaxChars"], `items[${index}]`);
     assertString(item.anchorId, `items[${index}].anchorId`, 128);
     if (!/^[A-Za-z0-9_-]+$/u.test(item.anchorId)) {
       throw new ContractError("invalid_request", 400, `items[${index}].anchorId has invalid characters`);
@@ -151,11 +156,27 @@ export function parseTranslationRequest(value: unknown, allowedOrigins: readonly
     if (item.dataClass === "sensitive" || protectedSourcePattern.test(item.source)) {
       throw new ContractError("sensitive_content_blocked", 422, `items[${index}] contains protected content`);
     }
+    // A layout hint, so it is bounded like every other field rather than
+    // trusted from the page context that produced it.
+    if (item.compactMaxChars !== undefined && (
+      typeof item.compactMaxChars !== "number"
+      || !Number.isInteger(item.compactMaxChars)
+      || item.compactMaxChars < MIN_COMPACT_MAX_CHARS
+      || item.compactMaxChars > MAX_COMPACT_MAX_CHARS
+    )) {
+      throw new ContractError(
+        "invalid_request",
+        400,
+        `items[${index}].compactMaxChars must be an integer between ${MIN_COMPACT_MAX_CHARS} and ${MAX_COMPACT_MAX_CHARS}`,
+      );
+    }
+
     return {
       anchorId: item.anchorId,
       source: item.source,
       component: item.component as ComponentKind,
       dataClass: "normal",
+      ...(item.compactMaxChars === undefined ? {} : { compactMaxChars: item.compactMaxChars }),
     };
   });
 

@@ -45,6 +45,12 @@ export interface TranslationRequest {
   anchorId: string;
   source: string;
   component: ComponentKind;
+  /**
+   * Characters the compact variant may use before the source box overflows.
+   * Sent only for regions that must keep their box, and omitted when the box is
+   * wide enough that no shortening is needed.
+   */
+  compactMaxChars?: number;
 }
 
 export interface TranslationResult {

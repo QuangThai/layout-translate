@@ -139,9 +139,16 @@ Out of scope:
   each renders as it arrives, and visible content is translated first. A failed
   batch reverts the whole pass so progressive rendering never leaves the page
   half translated.
-- [ ] Improve Vietnamese compact candidates; Vietnamese pushed more elements
-  into the ellipsis fallback than English on the same page, and the brand label
-  was clipped even though it should not be translated at all.
+- [x] Honour the standard `translate="no"` and `notranslate` opt-out, so a page
+  can keep brand names and identifiers out of translation without the engine
+  guessing which text is a proper noun.
+- [x] Send a measured character budget for regions that must keep their box, so
+  the provider can shorten to the space that exists.
+- [ ] Reduce the remaining Vietnamese clipping. The budget did not move it: a
+  control sized to two or three Japanese characters has no room for any
+  accurate English or Vietnamese label, so those anchors correctly fall back to
+  ellipsis plus tooltip. Closing this needs a product decision about what may
+  change when no honest label fits, not a better prompt.
 - [ ] Observe real-site behaviour through the runbook on a page the developer
   chooses. This is manual evidence and stays separate from the measured fixture
   and calibration gates.
@@ -406,6 +413,30 @@ Out of scope:
   the mutation records they produce, so only genuine page changes invalidate a
   pass. A focused test also caught a later batch's failure replacing the first
   one's diagnostic; the first failure is now the reported one.
+
+- Compact-budget result, including what it did not fix: the first attempt
+  derived the budget from the control's current width and treated it as a hard
+  limit. English clipping fell from 4 elements to 1, but the navigation label
+  `概要` came back as `Sum` instead of `Overview`, because a box sized to two
+  Japanese characters leaves room for roughly four Latin ones. Vietnamese got
+  worse in that configuration, at 6 clipped elements. The budget is now omitted
+  below 8 characters and the provider is told that correctness outranks the
+  limit. With that change English returned to `Overview` and clipping settled at
+  4 elements in English and 5 in Vietnamese, which is where it started. The
+  honest conclusion is that the budget helps only where a control is already
+  wide enough, and that narrow CJK-sized controls have no accurate short label
+  to find; those anchors keep their box and expose the full text through the
+  tooltip and `aria-label`, which the run confirmed.
+- Opt-out proof: the representative fixture carries the same Japanese string
+  twice, translated in the navigation and marked `translate="no"` in the
+  tagline. `npm run e2e:smoke` passed with `translationOptOutPreserved: true`,
+  so the opt-out is proven rather than a missed node.
+- Regression proof after both changes: `npm test` passed 14 files and 86 tests,
+  `tsc --noEmit` was clean, `npm run e2e:smoke` passed with zero page, console,
+  and browser-log errors, and `npm run calibration:smoke` passed all 6 cases
+  with unchanged geometry. The live provider run kept hard regions at `0px`,
+  page overflow false, and full-page rendering at `6.4s` English and `6.8s`
+  Vietnamese.
 
 ## Result
 

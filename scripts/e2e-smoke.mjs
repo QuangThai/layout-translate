@@ -443,6 +443,14 @@ async function main() {
       () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Company'"),
       "English translation",
     );
+    // The same Japanese string is translated in the navigation and left alone in
+    // the tagline, so this proves the opt-out and not merely a missed node.
+    const optOutPreserved = await evaluate(
+      cdp,
+      fixture,
+      "document.querySelector('.brand-tagline')?.textContent?.trim() === '会社情報'",
+    );
+    assert(optOutPreserved, 'content marked translate="no" must remain untranslated');
     await waitFor(
       () => evaluate(
         cdp,
@@ -1022,6 +1030,7 @@ async function main() {
         dynamicSpaTranslatedAndRestored: true,
         originalRestored: true,
         sourceLanguageGateVerified: true,
+        translationOptOutPreserved: optOutPreserved === true,
         backendFailureSourcePreserved: true,
         backendFailureStatus: failedTranslationState.status,
         backendFailureCodeObserved: failedTranslationState.lastError.includes("unauthorized"),

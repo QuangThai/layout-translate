@@ -120,3 +120,32 @@ describe("translation backend contract", () => {
     ])).toThrowError(expect.objectContaining({ code: "provider_invalid_response", status: 502 }));
   });
 });
+
+describe("compact budget hint", () => {
+  function withBudget(compactMaxChars: unknown) {
+    return validRequest({
+      items: [{ anchorId: "anchor-1", source: "会社情報", component: "navigation", dataClass: "normal", compactMaxChars }],
+    });
+  }
+
+  it("passes a valid budget through to the provider payload", () => {
+    const parsed = parseTranslationRequest(withBudget(12), allowedOrigins);
+    expect(parsed.items[0]).toMatchObject({ anchorId: "anchor-1", compactMaxChars: 12 });
+  });
+
+  it("stays optional so unbudgeted regions are unchanged", () => {
+    const parsed = parseTranslationRequest(validRequest(), allowedOrigins);
+    expect(parsed.items[0]?.compactMaxChars).toBeUndefined();
+  });
+
+  it.each([
+    ["a fraction", 12.5],
+    ["zero", 0],
+    ["a negative width", -5],
+    ["an implausible width", 5_000],
+    ["a string", "12"],
+    ["null", null],
+  ])("rejects %s", (_description, value) => {
+    expect(() => parseTranslationRequest(withBudget(value), allowedOrigins)).toThrow(ContractError);
+  });
+});

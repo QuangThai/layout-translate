@@ -26,3 +26,22 @@ export function preserveModeFor(kind: ComponentKind, element: Element): Preserve
 export function containsJapanese(value: string): boolean {
   return /[\u3040-\u30ff\u3400-\u9fff]/u.test(value);
 }
+
+/**
+ * Honours the standard opt-out a page uses to mark content that must be copied
+ * verbatim: the inherited HTML `translate` attribute and the `notranslate`
+ * class. This keeps brand names, code, and identifiers out of translation
+ * without the extension guessing which text is a proper noun.
+ */
+export function isTranslationOptedOut(element: Element): boolean {
+  let current: Element | null = element;
+  while (current) {
+    if (current.classList?.contains("notranslate")) return true;
+    const declared = current.getAttribute("translate")?.trim().toLowerCase();
+    // The nearest declaration wins, so a `yes` inside a `no` region opts back in.
+    if (declared === "no") return true;
+    if (declared === "yes") return false;
+    current = current.parentElement;
+  }
+  return false;
+}

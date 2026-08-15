@@ -38,6 +38,11 @@ const systemPrompt = [
   "Rules:",
   "- Keep compact no longer than full, and prefer it clearly shorter for buttons, tabs, badges,",
   "  navigation entries, and table headers.",
+  "- When an item has compactMaxChars, that is how much room the original control has. Aim to fit",
+  "  the compact variant within it using a shorter synonym or an abbreviation a reader of that",
+  "  language would immediately recognise. Correctness outranks the limit: never invent a word,",
+  "  truncate mid-word, or pick a term that changes the meaning in order to hit the number. If no",
+  "  accurate label fits, return the shortest accurate one and let it exceed the limit.",
   "- Preserve numbers, dates, units, product names, and proper nouns exactly as written.",
   "- Match the register and capitalisation conventions of the target language for UI labels, and do",
   "  not add trailing punctuation that the source does not have.",
@@ -108,6 +113,7 @@ function buildUserMessage(
     anchorId: item.anchorId,
     component: item.component,
     source: item.source,
+    ...(item.compactMaxChars === undefined ? {} : { compactMaxChars: item.compactMaxChars }),
   }));
   return [
     `Target language: ${languageNames[targetLanguage]}.`,
