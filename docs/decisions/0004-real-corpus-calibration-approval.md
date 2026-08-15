@@ -10,11 +10,12 @@ Proposed
 
 The synthetic calibration corpus and replayable browser evidence are passing,
 but the technical-spike exit gate requires calibration against a representative
-company page. The repository now contains a repository-generated synthetic
-sample for offline preflight and layout-tool development, but no product-
-approved real-corpus snapshot, provenance, sanitization review, or approval is
-present yet. This packet requests the decisions and artifact needed before the
-runner may consume a real corpus or produce real-corpus evidence.
+company page. The repository now contains a candidate sanitized snapshot
+derived from the public `nativeai.io` home page. It has source provenance and
+has passed automated marker checks, but no human sanitization review,
+product-owner/maintainer approval, or human-reviewed translation references
+are present yet. This packet requests the decisions and artifact needed before
+the runner may consume the candidate or produce real-corpus evidence.
 
 This is an approval packet, not an accepted product policy. Blank fields and
 unresolved alternatives must remain unresolved until the product owner signs
@@ -32,7 +33,7 @@ does not bypass product approval.
 | Corpus owner and source | Named product owner, source kind/reference, and allowed use | Open |
 | Calibration purpose | Geometry-only evidence, or geometry plus human-reviewed EN/VI references | Both modes implemented; real-corpus choice remains open |
 | Representative page | One sanitized page and the layout risks it represents | Open |
-| Measurement targets | Named anchor/sibling selectors and which targets are desktop hard gates | Open for real corpus; synthetic sample only has examples |
+| Measurement targets | Named anchor/sibling selectors and which targets are desktop hard gates | Candidate selectors are proposed; review remains open |
 | Viewports | Exact desktop/mobile widths and heights plus page-overflow policy per viewport | Open |
 | Desktop tolerance | Keep the provisional `<= 5px` spike target, or replace it with an approved target | Provisional `<= 5px` only |
 | Mobile tolerance | Numeric gate, qualitative review, or measured-but-ungated | Open |
@@ -51,6 +52,8 @@ After approval, place the snapshot under `fixtures/real-corpus/` with:
 - only local assets/fonts needed for offline replay;
 - no credentials, cookies, private data, tracking identifiers, external
   requests, or unnecessary executable behavior;
+- `sanitization.contentClass` set to either `synthetic-only` or
+  `public-sanitized`; the NativeAI-derived candidate uses `public-sanitized`;
 - a completed `manifest.json` containing the real snapshot ID, source,
   capture date, allowed use, viewports, calibration targets, file list,
   sanitization review, and product owner approval;
@@ -61,6 +64,10 @@ After approval, place the snapshot under `fixtures/real-corpus/` with:
 
 The manifest must describe facts that were actually reviewed. Do not invent
 provenance, approval, or `offlineReplay` claims.
+
+The content-class discriminator is part of manifest schema v2. It prevents a
+publicly derived sanitized snapshot from being mislabeled as synthetic-only
+while keeping both classes subject to the same human review and approval gate.
 
 `calibration.targets` is a measurement contract, not a production tolerance:
 each target names the anchor and sibling selectors the runner will measure and
@@ -117,10 +124,11 @@ they are not interchangeable with the content-free synthetic trace reports.
 
 ## Follow-Up
 
-- Fill this packet from the actual approved snapshot; do not substitute an
-  unapproved company page.
+- Fill this packet from the actual approved snapshot; the current
+  `nativeai.io`-derived candidate is not approval by itself and must not be
+  treated as production evidence.
 - Run and review the separate fail-closed real-corpus runner only after the
   artifact and policy fields above are complete; its implementation is present
-  but the checked-in pending sample must remain blocked.
+  but the checked-in pending candidate must remain blocked.
 - Keep provider benchmark/model selection blocked until its independent backend,
   provider, and human-review authority is accepted.

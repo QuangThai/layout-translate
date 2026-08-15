@@ -1,10 +1,10 @@
 {
-  "schema": "layout-translate/real-corpus-manifest/v1",
+  "schema": "layout-translate/real-corpus-manifest/v2",
   "status": "pending-review",
-  "snapshotId": "synthetic-local-layout-v1",
+  "snapshotId": "nativeai-home-sanitized-v1",
   "source": {
-    "kind": "repository-generated-synthetic",
-    "reference": "layout-translate-synthetic-corpus-v1",
+    "kind": "public-website-snapshot",
+    "reference": "https://nativeai.io/",
     "capturedAt": "2026-08-13"
   },
   "allowedUse": {
@@ -17,8 +17,8 @@
     "reviewedBy": null,
     "reviewedAt": null,
     "removedExternalRequests": true,
-    "syntheticDataOnly": true,
-    "notes": "All page text and values were generated for offline layout validation; no product approval has been granted."
+    "contentClass": "public-sanitized",
+    "notes": "Rendered layout and public Japanese copy were sampled from nativeai.io. Tracking scripts, Firebase configuration, external assets, addresses, personal names, customer names, and form actions were removed or replaced with neutral values. Automated marker checks passed; a human sanitization review and product approval are still required."
   },
   "viewports": [
     { "name": "desktop", "width": 1280, "height": 900, "pageOverflowPolicy": "hard" },
@@ -29,54 +29,54 @@
       {
         "name": "hero-panel",
         "anchorSelector": "[data-calibration='hero']",
-        "siblingSelector": "[data-calibration='card']",
+        "siblingSelector": "[data-calibration='news']",
         "desktopHardGate": true
       },
       {
-        "name": "reports-table",
-        "anchorSelector": "[data-calibration='table-panel']",
-        "siblingSelector": "[data-calibration='notice']",
+        "name": "service-grid",
+        "anchorSelector": "[data-calibration='services']",
+        "siblingSelector": "[data-calibration='cases']",
         "desktopHardGate": true
       },
       {
-        "name": "long-form-summary",
-        "anchorSelector": ".long-form",
+        "name": "projects-footer",
+        "anchorSelector": "[data-calibration='projects']",
         "siblingSelector": ".site-footer",
         "desktopHardGate": false
       }
     ],
     "translationCases": [
       {
-        "name": "company-label",
-        "selector": ".translation-probe-company",
-        "source": "\u4f1a\u793e\u60c5\u5831",
-        "en": "Company",
-        "vi": "Thông tin công ty"
+        "name": "home-label",
+        "selector": ".nav-home",
+        "source": "ホーム",
+        "en": "Home",
+        "vi": "Trang chủ"
       },
       {
-        "name": "contact-label",
-        "selector": ".translation-probe-contact",
-        "source": "\u304a\u554f\u3044\u5408\u308f\u305b\u306f\u3053\u3061\u3089",
-        "en": "Contact us",
-        "vi": "Liên hệ với chúng tôi",
+        "name": "service-label",
+        "selector": ".nav-service",
+        "source": "サービス内容",
+        "en": "Services",
+        "vi": "Dịch vụ",
         "compact": {
-          "en": "Contact",
-          "vi": "Liên hệ"
+          "en": "Service",
+          "vi": "Dịch vụ"
         }
       },
       {
-        "name": "status-label",
-        "selector": ".translation-probe-status",
-        "source": "\u9032\u6357\u72b6\u6cc1",
-        "en": "Status",
-        "vi": "Tiến độ"
+        "name": "contact-label",
+        "selector": ".nav-contact",
+        "source": "お問い合わせ",
+        "en": "Contact",
+        "vi": "Liên hệ"
       }
     ],
     "translationReview": {
       "reviewed": false,
       "reviewedBy": null,
       "reviewedAt": null,
-      "notes": "Synthetic expected strings are deterministic test references only; no product translation approval has been granted."
+      "notes": "Expected EN/VI strings are proposed references for human review; no product translation approval has been granted."
     }
   },
   "files": {
@@ -89,6 +89,6 @@
   "runtime": {
     "offlineReplay": true,
     "expectedEntry": "page.html",
-    "notes": "Synthetic sample only; keep status pending-review until a product owner approves a real snapshot."
+    "notes": "Sanitized, local-only rendering candidate derived from the public nativeai.io home page. Keep status pending-review until the product owner and maintainer approve the actual files."
   }
 }

@@ -1,11 +1,13 @@
 # Real-corpus snapshot template
 
 This directory is reserved for a **product-approved, sanitized snapshot** of
-one representative company page. It currently contains a repository-generated
-synthetic sample so the offline preflight and future runner can be exercised;
-that sample is not real-corpus evidence and remains `pending-review`. The
-directory is not a runnable real corpus until the manifest status is changed
-from `pending-review` to `approved` by the product owner.
+one representative company page. It currently contains a candidate snapshot
+derived from the public `nativeai.io` home page. The candidate keeps the
+observed section/layout structure and selected Japanese copy, but removes
+tracking, external assets, configuration, addresses, personal/customer names,
+and form actions so it can replay offline. It remains `pending-review`; the
+directory is not a runnable real corpus until the product owner and maintainer
+approve the actual files.
 
 ## Expected layout
 
@@ -17,20 +19,22 @@ fixtures/real-corpus/
 └── assets/
 ```
 
-`page.html` and `styles.css` are required for calibration. The manifest also
-declares `calibration.targets`, each with an anchor selector, sibling selector,
+`page.html` and `styles.css` are required for calibration. The manifest uses
+`layout-translate/real-corpus-manifest/v2` and records `sanitization.contentClass`
+as either `synthetic-only` or `public-sanitized`; the latter is the class used by
+the current NativeAI-derived candidate. The manifest also declares
+`calibration.targets`, each with an anchor selector, sibling selector,
 and explicit desktop hard-gate flag. Each viewport also records whether
 horizontal page overflow is a hard gate or measurement-only; mobile policy
 must not be inferred by the runner. Translation calibration additionally
 requires `calibration.translationCases` (selector plus expected source/EN/VI
 strings) and a separate human-review record in
 `calibration.translationReview`. These strings are test references, not a
-provider response or a production translation policy. The checked-in sample
-uses only local HTML/CSS and synthetic Japanese labels; it contains no external
-requests, scripts, credentials, or private data. `assets/` may contain
-only the static assets needed to reproduce the captured layout. Webfonts and
-baseline screenshots are optional and must be explicitly listed in the
-manifest.
+provider response or a production translation policy. The current candidate
+uses only local HTML/CSS and sanitized Japanese labels; it contains no external
+requests, scripts, credentials, or private data. `assets/` may contain only the
+static assets needed to reproduce the captured layout. Webfonts and baseline
+screenshots are optional and must be explicitly listed in the manifest.
 
 ## Sanitization checklist
 
@@ -76,7 +80,8 @@ the browser evidence report.
 
 ## Required manifest facts
 
-`manifest.json` intentionally starts with `null`/empty placeholders. Do not
-invent provenance or approval. Fill in the actual source, capture date,
-viewport(s), files, sanitization review, and product owner before running
-calibration.
+`manifest.json` must describe facts that were actually reviewed. Do not invent
+provenance or approval. The current candidate records the public source and
+capture date, but its human sanitization review, product-owner,
+translation-review, and maintainer approval fields are intentionally empty.
+Complete those fields from the actual review before running calibration.

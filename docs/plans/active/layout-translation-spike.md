@@ -102,9 +102,10 @@ Out of scope:
   without widening the provisional hard-shift target.
 - [ ] Validate the technical-spike exit gate.
 - [ ] Run real-corpus calibration from a product-approved sanitized snapshot.
-  A repository-generated synthetic `page.html`/`styles.css` sample now exists
-  for offline tooling, but the approved real snapshot, assets, and completed
-  approval fields are still missing. The open decisions and handoff fields are captured in
+  A candidate `page.html`/`styles.css` snapshot derived from the public
+  `nativeai.io` home page now exists for offline tooling. Product-owner and
+  maintainer approval, translation review, and the remaining policy decisions
+  are still missing. The open decisions and handoff fields are captured in
   [`docs/decisions/0004-real-corpus-calibration-approval.md`](../../decisions/0004-real-corpus-calibration-approval.md).
 - [x] Add the offline fail-closed `npm run real-corpus:preflight` preparation
   check; it rejects the pending template without starting Chrome or making
@@ -114,8 +115,11 @@ Out of scope:
   product-review input.
 - [x] Add separate fail-closed real-corpus `baseline` and `translation` browser
   modes, with `both` running the two passes and translation references gated by
-  explicit human-review metadata. The checked-in synthetic corpus remains
-  pending, so no approval or real-corpus evidence is claimed.
+  explicit human-review metadata. The checked-in `nativeai.io`-derived
+  candidate remains pending, so no approval or real-corpus evidence is claimed.
+- [x] Make the real-corpus manifest classify content explicitly as
+  `synthetic-only` or `public-sanitized`; the NativeAI-derived candidate uses
+  the latter and remains approval-gated.
 - [x] Run browser-observable accessibility validation for constrained fallback;
   screen-reader support remains outside this pass. The E2E smoke now proves
   keyboard focus/native tab order, mouse activation, Escape preservation, and
@@ -134,6 +138,14 @@ Out of scope:
 - [x] Complete browser failure matrix for synthetic 422 rejection, 502
   provider-invalid response, and request timeout; every mode preserves source
   and avoids partial presentation mutation.
+- [x] Add transaction guards for delayed translation responses, restore,
+  language switches, route/font invalidation, and incomplete batch correlation;
+  delayed browser proof covers restore and EN-to-VI races without stale renders.
+- [x] Make presentation restoration ownership-aware; style declarations and
+  title/ARIA attributes are restored only while their current values still
+  match extension-applied values, preserving page-owned mutations.
+- [x] Detect Japanese source before requesting translation so non-Japanese
+  records are skipped instead of sent to the backend.
 
 ## Decisions
 
@@ -154,12 +166,21 @@ Out of scope:
   sanitized HTML/CSS/font snapshot and browser-observable accessibility checks.
   The repository currently contains no such real-corpus snapshot; do not
   substitute an unapproved company page or infer a production tolerance.
+- 2026-08-13: Treat each in-flight translation batch as a versioned
+  transaction. Restore, target-language, route, font, and DOM invalidation
+  discard stale results; a requested rescan runs after the current request
+  settles.
+- 2026-08-13: Treat presentation declarations as extension-owned only for the
+  values this engine applied. Restore removes or reverts those declarations
+  only when the page has not changed them, so host-page mutations remain
+  authoritative.
 
 ## Validation
 
-- Focused proof: `npm test` passed; 3 test files and 13 tests passed, including
-  overflow tolerance, sibling-shift helper, and compact badge candidate
-  assertions.
+- Focused proof: `npm test` passed; 9 test files and 45 tests passed, including
+  overflow tolerance, sibling-shift helper, compact badge candidates,
+  delayed-response correlation guards, source-language detection, and
+  real-corpus manifest v2 content-class validation.
 - Type proof: `npm run typecheck` passed after WXT generated its types.
 - Build proof: `npm run build` passed and produced the Chrome MV3 bundle with
   background, popup, and translate content-script outputs.
@@ -219,6 +240,19 @@ Out of scope:
   stable; the critical action remained in the native tab order and retained its
   full-text tooltip; the two-card grid and fixed-layout table reported no page
   or table overflow; and EN/VI screenshots were written alongside the report.
+- Concurrency proof: `npm test` passed 35 tests, including fail-closed
+  translation-result correlation. `npm run e2e:smoke` passed with the mock
+  backend's bounded `delay-success` mode: restoring while a request was pending
+  left Japanese source and restored state intact, and switching EN-to-VI while
+  the English request was pending rendered Vietnamese rather than the stale
+  English response. The rerun reported zero page, console, or browser-log
+  errors and cleaned up its owned processes/profile.
+- Presentation ownership proof: the browser smoke changed a constrained
+  translated control's background color, width, title, and ARIA label while
+  translation was active. Restore returned the Japanese text while preserving
+  all four page-owned values; translation then resumed normally. The same
+  E2E rerun passed with zero page, console, and browser-log errors, and the
+  report records `presentationOwnershipVerified: true`.
   The report schema remains `layout-translate/e2e-report/v1`, with page,
   console, and browser-log error counts at zero and temporary browser profile
   cleanup confirmed. The fixture server returns `204` for the browser's
