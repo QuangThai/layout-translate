@@ -81,7 +81,13 @@ export async function translateViaBackend(
       body: JSON.stringify({
         pageOrigin,
         targetLanguage,
-        items: requests.map(({ anchorId, source, component }) => ({ anchorId, source, component, dataClass: "normal" })),
+        items: requests.map(({ anchorId, source, component, compactMaxChars }) => ({
+          anchorId,
+          source,
+          component,
+          dataClass: "normal",
+          ...(compactMaxChars === undefined ? {} : { compactMaxChars }),
+        })),
       }),
       signal: controller.signal,
     });

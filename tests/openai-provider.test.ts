@@ -74,6 +74,26 @@ describe("openai provider requests", () => {
     expect(userContent).not.toContain("dataClass");
   });
 
+  it("tells the provider how much room a constrained control has", async () => {
+    let body: Record<string, unknown> | undefined;
+    const provider = createOpenAIProvider(config, async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return structured([
+        { anchorId: "anchor-1", full: "Company Information", compact: "Company" },
+        { anchorId: "anchor-2", full: "Save", compact: "Save" },
+      ]);
+    });
+
+    await provider.translateBatch([{ ...items[0]!, compactMaxChars: 8 }, items[1]!], "en");
+
+    const systemPrompt = String((body?.messages as Array<{ content: string }>)[0]?.content);
+    expect(systemPrompt).toContain("compactMaxChars");
+    const userContent = String((body?.messages as Array<{ content: string }>).at(-1)?.content);
+    const payload = JSON.parse(userContent.slice(userContent.indexOf("{")));
+    expect(payload.items[0]).toMatchObject({ anchorId: "anchor-1", compactMaxChars: 8 });
+    expect(payload.items[1].compactMaxChars).toBeUndefined();
+  });
+
   it("maps provider failures to contract errors without echoing content", async () => {
     const rateLimited = createOpenAIProvider(config, async () =>
       completion({ error: { code: "rate_limit_exceeded", message: "会社情報 was too long" } }, false, 429));
