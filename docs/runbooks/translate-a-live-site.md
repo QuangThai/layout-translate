@@ -1,0 +1,143 @@
+# Application Runbook: Translate A Live Site
+
+Date: 2026-08-15
+
+## Scope
+
+Run the built extension against a real website with a real translation
+provider, so a developer can observe whether in-place Japanese translation and
+layout preservation behave as intended outside the fixtures.
+
+This is a developer verification loop, not a product release path. It grants no
+standing access to any site and adds no snapshot to the repository.
+
+## Prerequisites
+
+- Node 22 or newer (`package.json` `engines`).
+- Chrome or Chrome for Testing.
+- An OpenAI API key held by the operator, never committed and never placed in
+  extension code or storage.
+- A model ID chosen by the operator. The backend assumes no default model and
+  refuses to start without one.
+
+## Start
+
+Build the extension:
+
+```bash
+npm run build
+```
+
+Start the backend with the real provider. Every value below is configurable;
+none is defaulted on your behalf except the provider base URL and timeout:
+
+```bash
+OPENAI_API_KEY=sk-...                                   \
+LAYOUT_TRANSLATE_PROVIDER=openai                        \
+LAYOUT_TRANSLATE_PROVIDER_MODEL=<model-id>              \
+LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN=<local-dev-token>      \
+LAYOUT_TRANSLATE_ALLOWED_ORIGINS=https://example.co.jp  \
+LAYOUT_TRANSLATE_ALLOW_EXTENSION_CLIENTS=true           \
+npm run backend:mock
+```
+
+- `LAYOUT_TRANSLATE_ALLOWED_ORIGINS` is the page-origin allowlist from
+  `docs/decisions/0001-mvp-translation-data-security-boundary.md`. A page whose
+  origin is absent is rejected with `403 origin_not_allowed`; the backend does
+  not infer it from the request.
+- `LAYOUT_TRANSLATE_ALLOW_EXTENSION_CLIENTS=true` lets the extension's own
+  origin call the backend through CORS.
+- Optional: `LAYOUT_TRANSLATE_PROVIDER_BASE_URL` (defaults to
+  `https://api.openai.com/v1`), `LAYOUT_TRANSLATE_PROVIDER_TIMEOUT_MS`
+  (defaults to `30000`), `LAYOUT_TRANSLATE_RATE_LIMIT` (defaults to `60`
+  requests per minute per client address).
+- The server binds `127.0.0.1` only. The provider key stays in the backend
+  process; the extension never receives it.
+
+## Readiness
+
+The backend prints its listening line followed by a single JSON line:
+
+```json
+{"event":"backend_started","provider":"openai","model":"<model-id>","allowedPageOrigins":["https://example.co.jp"]}
+```
+
+`provider` must read `openai`. If it reads `mock`, the provider environment was
+incomplete and the offline dictionary is active instead.
+
+## Deterministic State
+
+1. Load `.output/chrome-mv3` as an unpacked extension in `chrome://extensions`.
+2. Open the extension's service worker console and set the backend config once:
+
+   ```js
+   chrome.storage.local.set({
+     "layout-translate:backend": {
+       url: "http://127.0.0.1:8787",
+       token: "<local-dev-token>",
+       timeoutMs: 30000,
+     },
+   });
+   ```
+
+   `timeoutMs` is optional and defaults to `10000`, which is tuned for the
+   fixture dictionary and is usually too short for a real provider batch.
+3. Open the target page in a normal tab.
+
+## Interface
+
+1. Open the popup. It shows the current origin and an **Enable on this site**
+   button for any origin that is not a fixture host.
+2. Press it. Chrome asks for host access for that single origin; the popup then
+   injects the content script into the active tab.
+3. Toggle **Translate page** ON and choose EN or VI.
+4. **Restore original Japanese** returns the current page source.
+5. **Remove access** revokes the origin grant. Chrome also lists every granted
+   site under the extension's *Site access* settings.
+
+Granting is per origin: `https://example.co.jp` does not cover
+`https://shop.example.co.jp` or a different port.
+
+## Runtime Evidence
+
+- Backend: one JSON line per response with `event`, `requestId`, `method`,
+  `path`, and `status`. Page text and translations are never logged.
+- Extension: the popup status line shows the current phase, or the backend
+  error code for a failed batch. Errors carry the backend `x-request-id` so a
+  popup error can be correlated with the backend line that produced it.
+- Failure codes you should expect to see rather than treat as bugs:
+  `origin_not_allowed` (page origin missing from the allowlist),
+  `sensitive_content_blocked` (protected content pattern matched),
+  `rate_limited`, `provider_rate_limited`, `provider_unavailable`,
+  `provider_refused`, `provider_invalid_response`.
+- A failed batch leaves the Japanese source in place and applies no partial
+  presentation change.
+
+## Ownership And Cleanup
+
+- Stop the backend process this run started; it holds no durable state.
+- Remove the site grant from the popup or from Chrome's extension settings.
+- Remove the unpacked extension when finished.
+- No snapshot, screenshot, or page content is written to the repository by this
+  runbook. Anything you capture manually is yours to handle under the retention
+  decision in `docs/decisions/0004-real-corpus-calibration-approval.md`.
+
+## Validation
+
+- `npm test`, `npm run typecheck`, and `npm run build` cover the contract and
+  build.
+- `npm run backend:smoke` proves the authorization, allowlist, protected
+  content, and rate-limit behavior against the offline dictionary.
+- `npm run e2e:smoke` proves the fixture journey end to end.
+- This runbook itself is validated by the observed journey on a real site; that
+  observation is not automated and must be reported as manual evidence.
+
+## Unknowns
+
+- No model is selected or endorsed. Model choice, quality, latency, and cost
+  remain open per `docs/decisions/0003-translation-model-benchmark-contract.md`.
+- Production domain policy, caching, and audit retention remain open. The
+  allowlist here is an operator-supplied development value, not a product
+  domain policy.
+- Layout tolerance on real pages is not gated by this runbook. It renders and
+  reports; it does not measure anchor shift.

@@ -45,7 +45,10 @@ export type ContractErrorCode =
   | "request_too_large"
   | "rate_limited"
   | "unauthorized"
-  | "provider_invalid_response";
+  | "provider_invalid_response"
+  | "provider_refused"
+  | "provider_rate_limited"
+  | "provider_unavailable";
 
 export class ContractError extends Error {
   constructor(

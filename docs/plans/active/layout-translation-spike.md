@@ -124,6 +124,15 @@ Out of scope:
   cannot be mislabeled as synthetic; both classes stay approval-gated.
 - [x] Rehearse the real-corpus runner end to end against a throwaway synthetic
   corpus outside the repository, proving the tooling is not the blocker.
+- [x] Make live-site developer verification possible: per-origin opt-in host
+  access from the popup, and an opt-in real OpenAI provider behind the existing
+  backend boundary with no assumed model. Recorded in
+  [`docs/decisions/0005-live-site-developer-verification.md`](../../decisions/0005-live-site-developer-verification.md)
+  and operated through
+  [`docs/runbooks/translate-a-live-site.md`](../../runbooks/translate-a-live-site.md).
+- [ ] Observe and record real-site behaviour through that runbook. This is
+  manual developer evidence and is deliberately separate from the measured
+  fixture and calibration gates.
 - [x] Run browser-observable accessibility validation for constrained fallback;
   screen-reader support remains outside this pass. The E2E smoke now proves
   keyboard focus/native tab order, mouse activation, Escape preservation, and
@@ -178,6 +187,10 @@ Out of scope:
   values this engine applied. Restore removes or reverts those declarations
   only when the page has not changed them, so host-page mutations remain
   authoritative.
+- 2026-08-15: Separate live-site verification from corpus calibration. Opening a
+  site in a developer's own browser stores and redistributes nothing, so it is
+  governed by per-origin consent rather than by the corpus approval packet.
+  Committing a page snapshot into the repository remains fully gated.
 - 2026-08-15: Require corpus source ownership before sanitization review. A
   page the repository has no right to retain or replay cannot become an
   approved corpus no matter how well it is sanitized, so a third-party public
@@ -335,6 +348,17 @@ Out of scope:
   caption rather than from translation. This proves runner mechanics only; the
   repository corpus stays `pending-review` and no real-corpus evidence is
   claimed.
+
+- Live-site enablement proof: `npm test` passed 11 files and 56 tests, including
+  per-origin site-target scoping and the provider's fail-closed configuration,
+  minimized payload, timeout, refusal, and malformed-output handling.
+  `npm run typecheck` and `npm run build` passed, and the built manifest keeps
+  declared `host_permissions` at the fixture hosts while listing
+  `optional_host_permissions` separately. `npm run backend:smoke` and
+  `npm run e2e:smoke` both still passed with zero page, console, and browser-log
+  errors, so the opt-in path did not weaken the fixture proofs. No real provider
+  call has been made from this repository; the provider path is covered by
+  focused tests with a stubbed fetch only.
 
 ## Result
 

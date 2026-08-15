@@ -11,6 +11,7 @@ Start with the smallest authoritative surface.
 - `product/`: current product behavior and installation contract.
 - `decisions/`: lasting choices future work must inherit.
 - `plans/`: one durable working-memory document for work that needs it.
+- `runbooks/`: verified operating procedures for running the application.
 - `templates/`: optional decision, plan, runbook, and Harness-improvement
   structures.
 

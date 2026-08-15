@@ -65,8 +65,11 @@ export async function translateViaBackend(
   requestTimeoutMs = REQUEST_TIMEOUT_MS,
 ): Promise<TranslationResult[]> {
   const endpoint = assertValidConfig(config);
+  const configuredTimeout = typeof config.timeoutMs === "number" && Number.isFinite(config.timeoutMs) && config.timeoutMs > 0
+    ? config.timeoutMs
+    : requestTimeoutMs;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  const timeout = setTimeout(() => controller.abort(), configuredTimeout);
   let requestId: string | null = null;
   try {
     const response = await fetchImpl(endpoint, {
