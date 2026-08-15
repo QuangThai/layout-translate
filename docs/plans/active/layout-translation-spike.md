@@ -130,9 +130,19 @@ Out of scope:
   [`docs/decisions/0005-live-site-developer-verification.md`](../../decisions/0005-live-site-developer-verification.md)
   and operated through
   [`docs/runbooks/translate-a-live-site.md`](../../runbooks/translate-a-live-site.md).
-- [ ] Observe and record real-site behaviour through that runbook. This is
-  manual developer evidence and is deliberately separate from the measured
-  fixture and calibration gates.
+- [x] Observe real-provider behaviour end to end with `npm run live:smoke`,
+  which drives the built extension against the local Japanese fixture through a
+  real provider and reports geometry, latency, and rendered samples without
+  enforcing a tolerance.
+- [ ] Reduce real-provider translation latency; the first observed run needed
+  15-20 seconds to render a 62-anchor page because batches are issued
+  sequentially and nothing is rendered until a batch returns.
+- [ ] Improve Vietnamese compact candidates; Vietnamese pushed more elements
+  into the ellipsis fallback than English on the same page, and the brand label
+  was clipped even though it should not be translated at all.
+- [ ] Observe real-site behaviour through the runbook on a page the developer
+  chooses. This is manual evidence and stays separate from the measured fixture
+  and calibration gates.
 - [x] Run browser-observable accessibility validation for constrained fallback;
   screen-reader support remains outside this pass. The E2E smoke now proves
   keyboard focus/native tab order, mouse activation, Escape preservation, and
@@ -359,6 +369,20 @@ Out of scope:
   errors, so the opt-in path did not weaken the fixture proofs. No real provider
   call has been made from this repository; the provider path is covered by
   focused tests with a stubbed fetch only.
+
+- First real-provider evidence: `npm run live:smoke -- --model=gpt-4.1-mini`
+  passed against the local Japanese fixture. The backend started in provider
+  mode, 62 anchors rendered in both languages, and page/console/backend error
+  counts were zero. Hard regions held exactly: hero, summary card, table panel,
+  and notice each moved `0px` in EN and VI, and no page overflow appeared. The
+  long-form region grew `47.09px` in height in both languages, moving the footer
+  down by the same amount; that is the documented soft-preserve behaviour, not a
+  regression. Restore returned the Japanese source with every measured shift
+  back to `0px`. Two findings came out of it: EN needed `15.0s` and VI `20.5s`
+  to render because batches are sequential, and Vietnamese pushed more elements
+  into the ellipsis fallback than English, including the brand label, which
+  should not be translated at all. Latency and compact-candidate quality are
+  now tracked as open work rather than claimed as solved.
 
 ## Result
 
