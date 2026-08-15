@@ -8,9 +8,11 @@ visual anchor.
 
 - WXT + TypeScript + React popup.
 - MV3 background service worker and content script.
-- Localhost-only host permissions for the representative fixture.
+- Localhost-only declared host permissions for the representative fixture, plus
+  per-origin opt-in access for live-site verification.
 - Deterministic mock backend translation adapter for browser proof.
-- No OpenAI call or production provider integration yet.
+- Opt-in real OpenAI provider behind the backend for developer verification;
+  the offline dictionary remains the default and no model is selected.
 - The extension vertical slice uses the local mock backend through the service
   worker; backend contract is available at `backend/src/mock-server.ts`.
 
@@ -27,8 +29,12 @@ npm run dev
 
 Serve the fixture from the repository root in a separate terminal, for example
 with any local static file server, then open `fixtures/representative.html` on
-`localhost`. The extension intentionally does not request access to arbitrary
-websites during this spike.
+`localhost`.
+
+To watch the extension work on a real page instead of a fixture, follow
+[`docs/runbooks/translate-a-live-site.md`](docs/runbooks/translate-a-live-site.md).
+The extension never holds standing access to arbitrary websites: each origin is
+requested from the popup at click time and can be revoked there.
 
 ## Checks
 
@@ -116,5 +122,26 @@ The mock server listens on `http://127.0.0.1:8787` and accepts the structured
 translation request described in `backend/README.md`. It is development-only,
 but its request boundary exercises bearer authentication, origin allowlisting,
 bounded payloads, rate limiting, protected-content denial, and response
-correlation. It does not call OpenAI or provide production security guarantees.
-Replay the boundary proof with `npm run backend:smoke`.
+correlation. It provides no production security guarantees. Replay the boundary
+proof with `npm run backend:smoke`.
+
+## Real provider mode
+
+The same server can call a real provider instead of the offline dictionary. It
+is opt-in, fails closed, and keeps the credential server-side:
+
+```powershell
+$env:LAYOUT_TRANSLATE_PROVIDER = "openai"
+$env:OPENAI_API_KEY = "sk-..."
+$env:LAYOUT_TRANSLATE_PROVIDER_MODEL = "<model-id>"
+npm run backend:mock
+```
+
+There is no default model: provider mode refuses to start without an explicit
+model ID, and incomplete configuration is a startup error rather than a silent
+fall back to mock output. Deterministic fixture overrides are ignored in this
+mode so they cannot rewrite real provider results. The startup log records the
+provider and model but never page content. Selecting a model remains open under
+[`docs/decisions/0003-translation-model-benchmark-contract.md`](docs/decisions/0003-translation-model-benchmark-contract.md);
+this mode is authorised for developer verification only, per
+[`docs/decisions/0005-live-site-developer-verification.md`](docs/decisions/0005-live-site-developer-verification.md).

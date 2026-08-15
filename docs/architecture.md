@@ -64,12 +64,21 @@ Owns server-side translation boundaries:
 - structured-response validation;
 - response correlation back to source anchor IDs.
 
-The current mock boundary implements the request-side version of these
+The current boundary implements the request-side version of these
 controls in [`backend/src/contract.ts`](../backend/src/contract.ts) and
 `backend/src/mock-server.ts`: explicit page-origin allowlisting, bearer
 authentication, bounded payloads, fail-closed protected-content checks,
-rate limiting, and provider-result correlation. It is still a local mock and
-is not production authentication or PII classification.
+rate limiting, and provider-result correlation. It is still a development
+server and is not production authentication or PII classification.
+
+The translation source behind that boundary is selectable. The default is the
+offline dictionary; `LAYOUT_TRANSLATE_PROVIDER=openai` swaps in the real
+provider in [`backend/src/openai-provider.ts`](../backend/src/openai-provider.ts)
+for developer verification. Selection is fail-closed: provider mode requires an
+explicit model ID and refuses to start otherwise, and it never falls back to
+mock output. Provider results pass through the same
+`validateTranslationResults` correlation check as mock results, and fixture
+overrides are disabled while a real provider is active.
 
 The OpenAI credential is backend-only and must never be bundled into the
 extension.
@@ -79,6 +88,19 @@ extension.
 Is an external provider boundary. The exact model, retention, caching, and
 allowed data classes remain decision-required. No implementation may treat a
 provider response as trusted without schema and source-ID validation.
+
+Provider errors are translated into contract codes (`provider_unavailable`,
+`provider_rate_limited`, `provider_refused`, `provider_invalid_response`)
+without echoing provider error text, because that text can contain the
+submitted page content.
+
+### Site access
+
+Declared host permissions cover the fixture hosts only. Any other origin is
+requested at popup click time through `optional_host_permissions`, one exact
+origin per grant, and the popup then injects the content script into that tab.
+The content script guards against double injection so a repeated grant cannot
+start a second engine over the same DOM. Grants are revocable from the popup.
 
 ## Data flow
 

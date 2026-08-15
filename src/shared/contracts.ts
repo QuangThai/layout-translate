@@ -58,6 +58,8 @@ export const BACKEND_CONFIG_KEY = "layout-translate:backend";
 export interface BackendConfig {
   url: string;
   token: string;
+  /** Real providers are slower than the fixture dictionary; opt in per install. */
+  timeoutMs?: number;
 }
 
 export type ContentCommand =

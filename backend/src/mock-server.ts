@@ -11,6 +11,7 @@ import {
   parseTranslationRequest,
   validateTranslationResults,
 } from "./contract";
+import { createOpenAIProvider, readOpenAIProviderConfig, type TranslationProvider } from "./openai-provider";
 
 const port = Number(process.env.LAYOUT_TRANSLATE_MOCK_PORT ?? 8787);
 const authToken = process.env.LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN;
@@ -64,6 +65,17 @@ function loadTranslationOverrides(path: string | undefined): Record<string, Mock
 }
 
 const translationOverrides = loadTranslationOverrides(translationOverridesPath);
+
+// The default remains the offline dictionary. A real provider is opt-in, keeps
+// its credentials server-side, and fails closed when its configuration is
+// incomplete rather than silently degrading to mock output.
+const providerMode = process.env.LAYOUT_TRANSLATE_PROVIDER ?? "mock";
+if (providerMode !== "mock" && providerMode !== "openai") {
+  throw new Error("LAYOUT_TRANSLATE_PROVIDER must be mock or openai");
+}
+const provider: TranslationProvider | null = providerMode === "openai"
+  ? createOpenAIProvider(readOpenAIProviderConfig())
+  : null;
 
 if (!authToken) {
   throw new Error("LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN must be configured before starting the mock backend");
@@ -193,23 +205,29 @@ const server = createServer(async (request, response) => {
     if (activeFailureMode === "delay-success") await sleep(350);
     // Keep the provider payload limited to the contract fields; no source-page
     // metadata or extension-owned fields are forwarded implicitly.
-      const providerResults = await mockTranslateBatch(
-        parsed.items.map(({ anchorId, source, component }) => ({ anchorId, source, component })),
-        parsed.targetLanguage,
-      );
-      const overriddenResults = providerResults.map((result, index) => {
-        const item = parsed.items[index];
-        if (!item) return result;
-        const override = translationOverrides[item.source];
-        if (!override) return result;
-        const full = override[parsed.targetLanguage];
-        if (typeof full !== "string" || full.length === 0) return result;
-        return {
-          ...result,
-          full,
-          compact: override.compact?.[parsed.targetLanguage] ?? full,
-        };
-      });
+      const providerResults = provider
+        ? await provider.translateBatch(parsed.items, parsed.targetLanguage)
+        : await mockTranslateBatch(
+          parsed.items.map(({ anchorId, source, component }) => ({ anchorId, source, component })),
+          parsed.targetLanguage,
+        );
+      // Deterministic overrides are a fixture-replay hook, so they must never
+      // rewrite what a real provider returned.
+      const overriddenResults = provider
+        ? providerResults
+        : providerResults.map((result, index) => {
+          const item = parsed.items[index];
+          if (!item) return result;
+          const override = translationOverrides[item.source];
+          if (!override) return result;
+          const full = override[parsed.targetLanguage];
+          if (typeof full !== "string" || full.length === 0) return result;
+          return {
+            ...result,
+            full,
+            compact: override.compact?.[parsed.targetLanguage] ?? full,
+          };
+        });
       const translations = validateTranslationResults(parsed.items, overriddenResults);
     writeJson(request, response, 200, { translations }, requestId);
   } catch (error) {
@@ -218,5 +236,13 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Layout Translate mock backend listening on http://127.0.0.1:${port}`);
+  console.log(`Layout Translate backend listening on http://127.0.0.1:${port}`);
+  // Never log page content or credentials; the provider mode and model name are
+  // configuration, not translated material.
+  console.log(JSON.stringify({
+    event: "backend_started",
+    provider: provider?.name ?? "mock",
+    model: provider?.model ?? null,
+    allowedPageOrigins,
+  }));
 });

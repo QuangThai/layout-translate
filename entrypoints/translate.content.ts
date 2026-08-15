@@ -6,6 +6,17 @@ export default defineContentScript({
   matches: ["http://localhost/*", "http://127.0.0.1/*"],
   runAt: "document_idle",
   main(ctx) {
+    // On opt-in sites this file is injected programmatically, and the popup can
+    // be opened again on an already-enabled tab. Injecting twice would start a
+    // second engine over the same DOM, so the first one stays authoritative.
+    const injectionFlag = "__layoutTranslateEngineActive";
+    const world = globalThis as Record<string, unknown>;
+    if (world[injectionFlag]) return;
+    world[injectionFlag] = true;
+    ctx.onInvalidated(() => {
+      world[injectionFlag] = false;
+    });
+
       const translateBatch = async (
         requests: TranslationRequest[],
         targetLanguage: TargetLanguage,

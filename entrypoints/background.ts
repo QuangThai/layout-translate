@@ -13,9 +13,13 @@ const STORAGE_KEY = "layout-translate:state";
 async function readBackendConfig(): Promise<BackendConfig> {
   const stored = await browser.storage.local.get("layout-translate:backend");
   const configured = stored["layout-translate:backend"] as Partial<BackendConfig> | undefined;
+  const timeoutMs = typeof configured?.timeoutMs === "number" && Number.isFinite(configured.timeoutMs) && configured.timeoutMs > 0
+    ? configured.timeoutMs
+    : undefined;
   return {
     url: configured?.url ?? "",
     token: configured?.token ?? "",
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
   };
 }
 
