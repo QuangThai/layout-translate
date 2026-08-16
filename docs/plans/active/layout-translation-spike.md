@@ -144,6 +144,11 @@ Out of scope:
   guessing which text is a proper noun.
 - [x] Send a measured character budget for regions that must keep their box, so
   the provider can shorten to the space that exists.
+- [x] Gate the browser proofs in CI. The fixture journey, the dynamic-page
+  suite, and the calibration gate were local-only, so a regression in the
+  strongest evidence this repository has was caught only by someone remembering
+  to run them. The negative control runs beside them, so a suite that has lost
+  the ability to fail is itself a failure.
 - [x] Define what the medium policy actually promises. It is not a pixel budget:
   a medium region may grow, because pushing content down is ordinary reflow, but
   it must not spill out of its box, because that is text the reader loses. A
@@ -575,6 +580,14 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Getting those proofs to run in CI took six attempts and each one was a guess
+  until the runner was made to report what the browser actually had. It then
+  answered in one line: Chrome started, opened the fixture, listed no extension
+  target, and said nothing at all about the extension. Stable Chrome now ignores
+  `--load-extension` silently, and the feature flag meant to re-enable it does
+  not help. CI uses the Chromium build Playwright manages instead. The lesson is
+  the same one this plan keeps recording: make the failure describe itself
+  before trying to fix it.
 - Medium-policy answer, measured rather than chosen: across six real pages the
   medium regions grew by up to `269px` but only 18 of 2167 of them, `0.8%`,
   actually overflowed, and no page overflowed horizontally anywhere. A pixel cap

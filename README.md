@@ -65,9 +65,12 @@ browser diagnostics are counts/codes rather than raw page messages.
 
 The repository CI workflow runs typecheck, unit/contract tests, the extension
 build, the React/Vue fixture build, backend contract smoke, and the offline
-translation benchmark contract. Browser E2E
-remains a separate local or environment-specific check because it requires a
-Chrome for Testing binary.
+translation benchmark contract. A second job runs the browser proofs: the
+fixture journey, the dynamic-page suite with its negative control, and the
+calibration gate. Those need a browser and nothing else, since all three drive
+the offline mock backend. Stable Chrome now ignores `--load-extension` without
+reporting it, so CI uses the Chromium build Playwright manages and runs headful
+under Xvfb; set `LAYOUT_TRANSLATE_HEADFUL=1` to reproduce that locally.
 
 `npm run calibration:smoke` runs three local layout archetypes (intrinsic flex,
 grid/table, and long-form content) at desktop and mobile viewports. It records
