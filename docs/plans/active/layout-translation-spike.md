@@ -169,6 +169,12 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Classify components on markup that is not semantic. A site built from
+  divs, classes, and ARIA roles exposed no `nav`, `table`, or `button`, so most
+  of its anchors fell through to unknown and lost the policy that keeps their
+  box. ARIA table and menu roles are now recognised, and a plain link counts as
+  navigation, which `SPEC.md` already lists as MVP content. A link that wraps a
+  whole card, or one inside running prose, is deliberately left alone.
 - [x] Retry a batch that failed for a transient reason, and report how often it
   happened. Until now one passing 429 or 502 discarded the whole pass, and on a
   page translated in dozens of batches at least one such failure is likely. A
@@ -562,6 +568,27 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Classification finding, from running seven real pages rather than reasoning
+  about markup. On a large retailer, 821 of 1024 anchors classified as unknown
+  and only 2 as a hard-policy component, because the page is built from divs and
+  classes and exposes no `nav`, `table`, or `button`. This is the risk `SPEC.md`
+  records as Risk 9. On a page using semantic markup the same measurement showed
+  2 unknown out of 113, so the gap was the markup, not the classifier's ability
+  to run.
+- After recognising ARIA table and menu roles and treating a plain link as
+  navigation, the retailer went from 2 hard-policy anchors to 593, and every one
+  of them held its box exactly at `0px`. The trade-off is real and is recorded
+  rather than presented as a win: anchors that previously grew now keep their
+  box, so roughly 70 of them fall back to compact or to ellipsis plus tooltip,
+  against 4 before. That is the fallback order `SPEC.md` prescribes for a hard
+  region, and the full text stays reachable through the tooltip and accessible
+  name. Nothing semantic-critical was shortened on any of the seven pages.
+- Two guards keep that from going too far, each with a focused test: a link that
+  wraps a heading or an image is a card container rather than a label, and a
+  link inside running prose belongs to the paragraph policy, since pinning its
+  box would clip a word mid-sentence. On a page with semantic markup the change
+  moved only two anchors, from medium into hard, and left its fallback counts
+  identical.
 - Retry proof: the mock backend gained a mode that refuses the first request of
   each batch and answers the retry, which is the shape of a transient provider
   problem. The browser proof drives it and confirms the page translates anyway,

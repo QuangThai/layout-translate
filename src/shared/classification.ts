@@ -3,9 +3,26 @@ import type { ComponentKind, PreserveMode } from "./contracts";
 export function classifyElement(element: Element): ComponentKind {
   const tagName = element.tagName.toLowerCase();
 
-  if (element.closest("header, nav, [role='navigation']")) return "navigation";
-  if (element.closest("table, thead, tbody, tr, th, td")) return "table";
+  if (element.closest("header, nav, [role='navigation'], [role='menubar']")) return "navigation";
+  if (element.closest("table, thead, tbody, tr, th, td, [role='table'], [role='grid'], [role='row'], [role='cell'], [role='columnheader'], [role='rowheader']")) {
+    return "table";
+  }
   if (element.closest("button, [role='button']") || tagName === "button") return "button";
+
+  // SPEC lists links and navigation as MVP content, but a site built from divs
+  // and classes exposes neither a nav nor a button, so its links fell through to
+  // unknown and lost the policy that keeps their box. A link that wraps a whole
+  // card is a container rather than a label, so it is left to the rules below.
+  const link = element.closest("a[href], [role='link'], [role='menuitem']");
+  if (
+    link
+    && !link.querySelector("h1, h2, h3, h4, h5, h6, img, p, article, section, ul, ol, table")
+    // A link inside running prose is part of the sentence, not a control. Pinning
+    // its box would clip a word in the middle of a paragraph.
+    && !link.closest("p, article, blockquote")
+  ) {
+    return "navigation";
+  }
   if (element.closest("[role='tab'], [data-tab], .tab")) return "tab";
   if (element.matches("[data-badge], [class*='badge'], [class*='tag']")) return "badge";
   if (element.matches("label, [data-form-label]")) return "form-label";

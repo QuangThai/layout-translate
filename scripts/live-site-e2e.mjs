@@ -303,7 +303,7 @@ function changedCount(before, after) {
   return before.filter((text, index) => text && after[index] && text !== after[index]).length;
 }
 
-async function waitForRendered(popup, page, baselineJapanese, previousTexts, label) {
+async function waitForRendered(popup, page, baselineJapanese, previousTexts, label, requireChange = true) {
   const deadline = Date.now() + TRANSLATION_TIMEOUT_MS;
   let last = {};
   while (Date.now() < deadline) {
@@ -331,10 +331,13 @@ async function waitForRendered(popup, page, baselineJapanese, previousTexts, lab
     const comparable = previousTexts.filter((text, index) => text && texts[index]).length;
     last = { ...state, japaneseNodes, changed, comparable };
     if (state.lastError) throw new Error(`${label} failed: ${state.lastError}`);
-    // Absence of Japanese is not enough: after English the page already has
-    // none, so a Vietnamese pass would look instantly complete. Require the
-    // rendering to have actually changed from the previous one.
-    const rerendered = comparable === 0 || changed >= Math.max(1, Math.floor(comparable / 2));
+    // Absence of Japanese is not enough for a second language: after English the
+    // page already has none, so a Vietnamese pass would look instantly complete.
+    // For the first pass it is enough, because a page whose sampled elements
+    // were already English has nothing there to change.
+    const rerendered = !requireChange
+      || comparable === 0
+      || changed >= Math.max(1, Math.floor(comparable / 2));
     // A live SPA keeps mutating, so the engine may re-enter translating; accept
     // the pass once most Japanese is gone and the engine has settled.
     if (state.status === "rendered" && rerendered
@@ -563,6 +566,7 @@ async function main() {
         baseline.japaneseNodes,
         previousTexts,
         `${targetLanguage} translation`,
+        targetLanguage !== languages[0],
       );
       await sleep(SETTLE_MS);
       const measured = await page.evaluate(MEASURE);
