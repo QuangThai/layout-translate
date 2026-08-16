@@ -28,35 +28,37 @@ Build the extension:
 npm run build
 ```
 
-Start the backend with the real provider. Every value below is configurable;
-none is defaulted on your behalf except the provider base URL and timeout:
+Start the backend with the real provider:
 
 ```bash
-OPENAI_API_KEY=sk-...                                   \
-LAYOUT_TRANSLATE_PROVIDER=openai                        \
-LAYOUT_TRANSLATE_PROVIDER_MODEL=<model-id>              \
-LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN=<local-dev-token>      \
-LAYOUT_TRANSLATE_ALLOWED_ORIGINS=https://example.co.jp  \
-LAYOUT_TRANSLATE_ALLOW_EXTENSION_CLIENTS=true           \
-npm run backend:mock
+npm run backend:live -- --model=<model-id> --site=https://example.co.jp
 ```
 
-- `LAYOUT_TRANSLATE_ALLOWED_ORIGINS` is the page-origin allowlist from
-  `docs/decisions/0001-mvp-translation-data-security-boundary.md`. A page whose
-  origin is absent is rejected with `403 origin_not_allowed`; the backend does
-  not infer it from the request.
-- `LAYOUT_TRANSLATE_ALLOW_EXTENSION_CLIENTS=true` lets the extension's own
-  origin call the backend through CORS.
-- Optional: `LAYOUT_TRANSLATE_PROVIDER_BASE_URL` (defaults to
-  `https://api.openai.com/v1`), `LAYOUT_TRANSLATE_PROVIDER_TIMEOUT_MS`
-  (defaults to `30000`), `LAYOUT_TRANSLATE_RATE_LIMIT` (defaults to `60`
-  requests per minute per client address).
-- The server binds `127.0.0.1` only. The provider key stays in the backend
-  process; the extension never receives it.
+- The key is read from `.env` (`OPENAI_API_KEY`) or the environment. It stays in
+  the backend process; the extension never receives it.
+- `--model` is required. No model is assumed, selected, or endorsed.
+- `--site` is the page-origin allowlist from
+  `docs/decisions/0001-mvp-translation-data-security-boundary.md`, and is also
+  required. A page whose origin you did not list is rejected with
+  `403 origin_not_allowed` rather than silently translated. Repeat the flag for
+  more origins; a bare hostname is read as `https://`.
+- Optional: `--port` (defaults to `8787`) and `--token` (defaults to
+  `dev-only-token`, and only ever travels over `127.0.0.1`).
+- The command prints the exact `chrome.storage.local.set` line to paste, with
+  the port and token already filled in.
+- The server binds `127.0.0.1` only.
+
+`npm run backend:mock` still starts the same server on the offline dictionary
+with no provider. Both accept the raw environment variables directly
+(`LAYOUT_TRANSLATE_PROVIDER`, `LAYOUT_TRANSLATE_PROVIDER_MODEL`,
+`LAYOUT_TRANSLATE_ALLOWED_ORIGINS`, `LAYOUT_TRANSLATE_PROVIDER_BASE_URL`,
+`LAYOUT_TRANSLATE_PROVIDER_TIMEOUT_MS`, `LAYOUT_TRANSLATE_RATE_LIMIT`) when you
+need something the flags do not cover.
 
 ## Readiness
 
-The backend prints its listening line followed by a single JSON line:
+The backend prints the configuration line to paste, then its listening line
+followed by a single JSON line:
 
 ```json
 {"event":"backend_started","provider":"openai","model":"<model-id>","allowedPageOrigins":["https://example.co.jp"]}
@@ -67,20 +69,12 @@ incomplete and the offline dictionary is active instead.
 
 ## Deterministic State
 
-1. Load `.output/chrome-mv3` as an unpacked extension in `chrome://extensions`.
-2. Open the extension's service worker console and set the backend config once:
-
-   ```js
-   chrome.storage.local.set({
-     "layout-translate:backend": {
-       url: "http://127.0.0.1:8787",
-       token: "<local-dev-token>",
-       timeoutMs: 30000,
-     },
-   });
-   ```
-
-   `timeoutMs` is optional and defaults to `10000`, which is tuned for the
+1. Load `.output/chrome-mv3` as an unpacked extension in `chrome://extensions`
+   with Developer mode on.
+2. Open that extension's **service worker** link and paste the
+   `chrome.storage.local.set` line the start command printed. This is stored per
+   profile, so it survives restarts and only needs redoing if you change the
+   port or token. `timeoutMs` defaults to `10000`, which is tuned for the
    fixture dictionary and is usually too short for a real provider batch.
 3. Open the target page in a normal tab.
 

@@ -127,8 +127,16 @@ proof with `npm run backend:smoke`.
 
 ## Real provider mode
 
-The same server can call a real provider instead of the offline dictionary. It
-is opt-in, fails closed, and keeps the credential server-side:
+To translate a real page, start the backend with a real provider and follow
+[`docs/runbooks/translate-a-live-site.md`](docs/runbooks/translate-a-live-site.md):
+
+```bash
+npm run backend:live -- --model=<model-id> --site=https://example.co.jp
+```
+
+It reads `OPENAI_API_KEY` from `.env`, requires an explicit model and page-origin
+allowlist, and prints the extension configuration to paste. The same server can
+also be started directly with the raw environment variables:
 
 ```powershell
 $env:LAYOUT_TRANSLATE_PROVIDER = "openai"
