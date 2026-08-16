@@ -254,13 +254,23 @@ async function findExtensionPopup(cdp) {
   // The service worker registers a moment after the browser starts, and how long
   // that takes depends on the machine. Asking once worked on a developer's
   // laptop and failed on a CI runner, which is the same bug either way.
-  const extensionIds = await waitFor(async () => {
-    const targets = await cdp.call("Target.getTargets");
-    const found = targets.targetInfos
-      .filter((target) => target.type === "service_worker" && target.url.endsWith("/background.js"))
-      .map((target) => target.url.slice("chrome-extension://".length).split("/")[0]);
-    return found.length > 0 ? found : false;
-  }, "the extension service worker to register", 30_000);
+  let extensionIds;
+  try {
+    extensionIds = await waitFor(async () => {
+      const targets = await cdp.call("Target.getTargets");
+      const found = targets.targetInfos
+        .filter((target) => target.type === "service_worker" && target.url.endsWith("/background.js"))
+        .map((target) => target.url.slice("chrome-extension://".length).split("/")[0]);
+      return found.length > 0 ? found : false;
+    }, "the extension service worker to register", 30_000);
+  } catch (error) {
+    // Say what the browser does have. "No service worker" is the same message
+    // whether the extension failed to load, loaded under another id, or the
+    // browser never started a worker at all.
+    const targets = await cdp.call("Target.getTargets").catch(() => ({ targetInfos: [] }));
+    const seen = targets.targetInfos.map((target) => target.type + ":" + target.url.slice(0, 60));
+    throw new Error(error.message + "; targets seen: " + JSON.stringify(seen) + "; browser said: " + JSON.stringify(browserStderr.slice(-6)));
+  }
 
   for (const extensionId of extensionIds) {
     const target = await cdp.call("Target.createTarget", {
@@ -321,6 +331,7 @@ async function main() {
   const consoleErrors = [];
   const logErrors = [];
   const backendFailureRequestIds = new Set();
+  const browserStderr = [];
   const backendTrace = { responseCount: 0, requestIds: [], stderrLineCount: 0 };
   let report = {
     schema: "layout-translate/e2e-report/v1",
@@ -359,8 +370,13 @@ async function main() {
         "--window-size=1280,900",
         ...(process.env.CI ? ["--no-sandbox", "--disable-dev-shm-usage"] : []),
       ],
-      { stdio: "ignore", windowsHide: true },
+      { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
     );
+    browser.stderr?.setEncoding("utf8");
+    browser.stderr?.on("data", (chunk) => {
+      browserStderr.push(...String(chunk).split(/\r?\n/u).filter(Boolean));
+      if (browserStderr.length > 40) browserStderr.splice(0, browserStderr.length - 40);
+    });
     cdp = await connectCdp(cdpPort);
     const browserVersion = await cdp.call("Browser.getVersion");
     report.trace.browser = {
