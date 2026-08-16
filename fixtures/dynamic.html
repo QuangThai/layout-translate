@@ -50,7 +50,6 @@
       <section class="feed-panel" id="feed" aria-labelledby="feed-heading">
         <h2 id="feed-heading">記事一覧</h2>
         <div class="feed" data-feed></div>
-        <div class="sentinel" data-sentinel aria-hidden="true"></div>
         <p class="feed-status" data-feed-status>読み込み中</p>
       </section>
 
@@ -58,6 +57,33 @@
       <section class="deferred-panel" id="deferred" aria-labelledby="deferred-heading">
         <h2 id="deferred-heading">詳細情報</h2>
         <div class="deferred" data-deferred></div>
+      </section>
+
+      <!-- Content that exists in the DOM but is not visible until the reader
+           acts. Each of these reveals itself a different way, and none of them
+           changes the text or the child list when it opens. -->
+      <section class="reveal-panel" aria-labelledby="reveal-heading">
+        <h2 id="reveal-heading">操作で開く内容</h2>
+        <button type="button" data-open="dialog">確認画面を開く</button>
+        <button type="button" data-open="popover">補足を開く</button>
+        <button type="button" data-open="menu">メニューを開く</button>
+
+        <!-- Opens by gaining the open attribute. -->
+        <dialog class="reveal-dialog" data-reveal="dialog">
+          <p data-probe="dialog-body">確認画面の本文</p>
+          <button type="button" data-close="dialog">閉じる</button>
+        </dialog>
+
+        <!-- Opens by losing the hidden attribute. -->
+        <div class="reveal-popover" data-reveal="popover" hidden>
+          <p data-probe="popover-body">補足の本文</p>
+        </div>
+
+        <!-- Opens by a class change, which is the one an observer cannot watch
+             without also seeing every animation frame on the page. -->
+        <div class="reveal-menu" data-reveal="menu">
+          <p data-probe="menu-body">メニューの本文</p>
+        </div>
       </section>
 
       <!-- A same-origin frame is a separate document with its own DOM, so it

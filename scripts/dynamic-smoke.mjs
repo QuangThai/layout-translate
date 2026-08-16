@@ -62,6 +62,14 @@ const TRANSLATIONS = {
   枠内の見出し: { en: "Heading inside the frame", vi: "Tiêu đề trong khung" },
   枠内の本文: { en: "Body text inside the frame", vi: "Nội dung trong khung" },
   枠内の入力欄: { en: "Field inside the frame", vi: "Ô nhập trong khung" },
+  操作で開く内容: { en: "Opened by the reader", vi: "Mở khi người dùng thao tác" },
+  確認画面を開く: { en: "Open the confirmation", vi: "Mở màn xác nhận" },
+  補足を開く: { en: "Open the note", vi: "Mở ghi chú" },
+  メニューを開く: { en: "Open the menu", vi: "Mở menu" },
+  確認画面の本文: { en: "Confirmation body text", vi: "Nội dung màn xác nhận" },
+  補足の本文: { en: "Note body text", vi: "Nội dung ghi chú" },
+  メニューの本文: { en: "Menu body text", vi: "Nội dung menu" },
+  閉じる: { en: "Close", vi: "Đóng" },
 };
 
 // Proves the assertions can fail: with translations withheld the page stays
@@ -374,11 +382,59 @@ async function main() {
     );
     report.phases.frame = { provider: since(frameMark), values: frameValues, aggregated };
 
+    // 1e. Content that only becomes visible when the reader acts. Each target
+    // opens a different way and none of them changes text or child lists, so
+    // this is where a change-driven engine is most likely to see nothing.
+    // Stop the page's own churn first. With a ticker running, any rescan it
+    // triggers would pick the revealed content up as a side effect, and this
+    // phase would pass without proving the reveal itself was noticed.
+    await page.evaluate(() => window.dynamicFixture.stopTextTimers());
+    await sleep(SETTLE_MS * 2);
+    const revealMark = mark();
+    const reveals = [
+      { name: "dialog", source: "確認画面の本文", probe: "dialog-body" },
+      { name: "popover", source: "補足の本文", probe: "popover-body" },
+      { name: "menu", source: "メニューの本文", probe: "menu-body" },
+    ];
+    const revealResults = {};
+    for (const reveal of reveals) {
+      await page.click(`[data-open='${reveal.name}']`);
+      const deadline = Date.now() + 12_000;
+      let shown = null;
+      while (Date.now() < deadline) {
+        shown = await page.evaluate((probe) =>
+          document.querySelector(`[data-probe='${probe}']`)?.textContent?.trim() ?? null, reveal.probe);
+        if (shown === expectation(reveal.source, "en")) break;
+        await sleep(300);
+      }
+      revealResults[reveal.name] = shown;
+      check(
+        `content revealed by ${reveal.name} is translated`,
+        shown === expectation(reveal.source, "en"),
+        `saw ${JSON.stringify(shown)}`,
+      );
+      // A modal dialog covers the controls behind it, so the next reveal cannot
+      // be opened until this one is closed.
+      if (reveal.name === "dialog") {
+        await page.evaluate(() => document.querySelector("[data-reveal='dialog']")?.close());
+      }
+    }
+    report.phases.reveal = { provider: since(revealMark), values: revealResults };
+    await page.evaluate(() => window.dynamicFixture.startTextTimers());
+
     // 2. Content appended while scrolling.
     const scrollMark = mark();
-    for (let step = 0; step < 14; step += 1) {
-      await page.evaluate(() => window.scrollBy({ top: 600, behavior: "instant" }));
+    // Scroll until the page stops growing rather than a fixed number of steps,
+    // since an endless feed makes the document taller as it is read.
+    let previousOffset = -1;
+    for (let step = 0; step < 40; step += 1) {
+      const offset = await page.evaluate(() => {
+        window.scrollBy({ top: 300, behavior: "instant" });
+        return Math.round(window.scrollY);
+      });
       await sleep(300);
+      if (offset === previousOffset) break;
+      previousOffset = offset;
     }
     await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
     await sleep(SETTLE_MS);
@@ -419,6 +475,13 @@ async function main() {
     );
     report.phases.scroll = {
       provider: since(scrollMark),
+      scrollDiagnostics: await page.evaluate(() => ({
+        scrollY: Math.round(window.scrollY),
+        scrollHeight: document.documentElement.scrollHeight,
+        innerHeight: window.innerHeight,
+        bodyOverflow: getComputedStyle(document.body).overflow,
+        openDialogs: document.querySelectorAll("dialog[open]").length,
+      })),
       feedBatches,
       cards: cardState.total,
       untranslatedCards: cardState.untranslated,

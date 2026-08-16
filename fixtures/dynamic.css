@@ -126,10 +126,6 @@ h2 {
   text-decoration: none;
 }
 
-.sentinel {
-  height: 1px;
-}
-
 .feed-status {
   color: #5a6a7d;
   font-size: 13px;
@@ -154,4 +150,35 @@ h2 {
   padding-top: 20px;
   color: #5a6a7d;
   font-size: 13px;
+}
+
+/* Three ways a page hides content until the reader acts. None of them changes
+   the text or the child list when it opens. */
+.reveal-dialog[open] {
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.reveal-popover {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+}
+
+.reveal-menu {
+  display: none;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+}
+
+.reveal-menu.is-open {
+  display: block;
+}
+
+.reveal-panel button {
+  margin-right: 8px;
 }

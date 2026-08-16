@@ -54,11 +54,16 @@
 
   // Appends more content as the reader reaches the bottom, the way an endless
   // feed does.
-  new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) appendBatch();
-    }
-  }, { rootMargin: "120px" }).observe(sentinel);
+  // Appends more content as the reader nears the bottom. A scroll listener is
+  // what many endless feeds actually use, and unlike an intersection sentinel it
+  // cannot be missed between two frames.
+  state.appendChecks = 0;
+  const maybeAppend = () => {
+    state.appendChecks += 1;
+    const remaining = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
+    if (remaining < 600) appendBatch();
+  };
+  window.addEventListener("scroll", maybeAppend, { passive: true });
 
   // Fills a section only once it is actually revealed.
   new IntersectionObserver((entries, observer) => {
@@ -130,6 +135,16 @@
   customElements.define("jp-badge", NestedBadge);
   customElements.define("jp-card", JpCard);
   customElements.define("jp-closed", JpClosed);
+
+  // Each control opens its target a different way, so the engine cannot rely on
+  // any single signal to notice.
+  const dialog = document.querySelector("[data-reveal='dialog']");
+  const popover = document.querySelector("[data-reveal='popover']");
+  const menu = document.querySelector("[data-reveal='menu']");
+  document.querySelector("[data-open='dialog']")?.addEventListener("click", () => dialog.showModal());
+  document.querySelector("[data-close='dialog']")?.addEventListener("click", () => dialog.close());
+  document.querySelector("[data-open='popover']")?.addEventListener("click", () => popover.removeAttribute("hidden"));
+  document.querySelector("[data-open='menu']")?.addEventListener("click", () => menu.classList.add("is-open"));
 
   const timers = [];
 

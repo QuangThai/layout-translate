@@ -166,6 +166,11 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Prove content revealed by a reader's action is translated: a `<dialog>`
+  opened with `showModal`, a panel that loses its `hidden` attribute, and a menu
+  revealed by a class change. All three were already handled, because content
+  that is present but hidden is collected on the first pass; the run now proves
+  it with the page's own churn stopped, so nothing else can be doing the work.
 - [x] Translate same-origin frames. Each frame runs its own engine and reports
   its own state, and the background folds those reports into the single state
   the popup shows. Translation requests now carry the frame's own origin instead
@@ -537,6 +542,23 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Reveal finding, which contradicted the expectation that motivated the work:
+  content behind a modal, a `hidden` panel, or a `display: none` menu was
+  already translated before the reveal, because visibility is judged per element
+  and a hidden ancestor does not change a descendant's computed display. The
+  reveal phase therefore had to stop the page's own ticker before asserting, or
+  it would have passed on the strength of a rescan triggered by unrelated churn.
+  One consequence worth noting rather than fixing here: geometry measured while
+  an element is hidden is zero, so hard-region width pinning does not apply to
+  content that is translated before it is ever shown.
+- Fixture defect found while doing it, and worth separating from engine
+  behaviour: the endless feed used a one-pixel `IntersectionObserver` sentinel
+  that never reported an intersection. Reproducing it in a browser with no
+  extension loaded showed the same result, so it was the fixture, not the
+  engine. Making the sentinel taller and the scroll steps smaller did not fix
+  it, so rather than claim an explanation the feed now appends from a scroll
+  listener, which is what many endless feeds actually use. Intersection-driven
+  reveal remains covered by the deferred section, which works.
 - Frame proof: the dynamic fixture embeds a same-origin frame whose heading,
   body text, and input placeholder are all translated, and the popup reports the
   anchors of every frame as one number rather than whichever frame reported
