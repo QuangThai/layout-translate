@@ -1,6 +1,7 @@
 import { createServer } from "node:net";
 import { execFileSync, spawn } from "node:child_process";
 import { join, resolve } from "node:path";
+import { taskkillCommand } from "./process-tree.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const runnerPath = join(repositoryRoot, "node_modules", "tsx", "dist", "cli.mjs");
@@ -64,7 +65,7 @@ function stopProcess(child) {
   if (!child || child.exitCode !== null) return;
   if (process.platform === "win32") {
     try {
-      execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+      execFileSync(taskkillCommand(), ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
     } catch {
       // The process may have exited between the status check and taskkill.
     }

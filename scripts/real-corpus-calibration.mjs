@@ -14,6 +14,7 @@ import { delimiter, dirname, join, relative, resolve, sep } from "node:path";
 import { createServer as createTcpServer } from "node:net";
 import { validateRealCorpus } from "./real-corpus-preflight.mjs";
 import { classifyFailure, readTraceMetadata, removeOwnedArtifacts } from "./trace-metadata.mjs";
+import { taskkillCommand } from "./process-tree.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(repositoryRoot, ".output", "chrome-mv3");
@@ -75,7 +76,7 @@ async function stopProcess(child) {
   if (!child || child.exitCode !== null) return true;
   if (process.platform === "win32") {
     try {
-      execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", timeout: CLEANUP_TIMEOUT_MS });
+      execFileSync(taskkillCommand(), ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", timeout: CLEANUP_TIMEOUT_MS });
     } catch {
       // The process may have exited between the status check and taskkill.
     }

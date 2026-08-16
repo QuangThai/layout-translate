@@ -116,6 +116,35 @@ Granting is per origin: `https://example.co.jp` does not cover
   runbook. Anything you capture manually is yours to handle under the retention
   decision in `docs/decisions/0004-real-corpus-calibration-approval.md`.
 
+## Automated run
+
+```bash
+npm run live:site
+```
+
+Drives the same journey with Playwright and writes measurements instead of
+requiring a person to watch: how much of the page was translated, anchor shifts
+against a pre-translation baseline, horizontal overflow, newly clipped elements,
+scroll-height change, rendered samples, screenshots, and restore.
+
+It reads `LAYOUT_TRANSLATE_PROVIDER_MODEL` and the first entry of
+`LAYOUT_TRANSLATE_SITES` from `.env`; `--model=` and `--site=` override them, and
+`--language=en|vi|both` selects the passes.
+
+Two things to know about how it differs from the manual flow:
+
+- Chrome's per-site permission bubble cannot be driven, so the runner copies the
+  build to `.output/live-site-extension` and declares the target origin in the
+  copy. That is the same grant the popup asks a person for. The shipped build
+  still declares only the fixture hosts, and the copy is deleted on exit.
+- It still injects the content script through `chrome.scripting`, exactly as the
+  popup does after a real grant, rather than relying on a declared content
+  script match.
+
+The report at `.output/live-site-report.json` and the screenshots under
+`.output/live-site/` contain real page text. `.output/` is gitignored; treat
+those files as the site's content, not as repository artefacts.
+
 ## Validation
 
 - `npm test`, `npm run typecheck`, and `npm run build` cover the contract and

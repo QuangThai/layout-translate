@@ -149,9 +149,16 @@ Out of scope:
   accurate English or Vietnamese label, so those anchors correctly fall back to
   ellipsis plus tooltip. Closing this needs a product decision about what may
   change when no honest label fits, not a better prompt.
-- [ ] Observe real-site behaviour through the runbook on a page the developer
-  chooses. This is manual evidence and stays separate from the measured fixture
-  and calibration gates.
+- [x] Observe real-site behaviour. `npm run live:site` drives the built
+  extension against a real page with a real provider through Playwright and
+  records translation coverage, anchor shifts, overflow, clipping, restore, and
+  screenshots. This is developer evidence from one live page; it is not a gate
+  and does not replace the approval-bound corpus calibration.
+- [x] Fix the constrained fallback on flex and grid controls, found by that run:
+  `text-overflow` does not apply to a flex container, so a clipped label lost
+  both ends and showed an unreadable middle fragment with no ellipsis.
+- [ ] Explain and reduce the Vietnamese pass being roughly three times slower
+  than English on the same live page.
 - [x] Run browser-observable accessibility validation for constrained fallback;
   screen-reader support remains outside this pass. The E2E smoke now proves
   keyboard focus/native tab order, mouse activation, Escape preservation, and
@@ -437,6 +444,36 @@ Out of scope:
   with unchanged geometry. The live provider run kept hard regions at `0px`,
   page overflow false, and full-page rendering at `6.4s` English and `6.8s`
   Vietnamese.
+
+- First real-site evidence, on a public Japanese Nuxt page of 178 Japanese text
+  nodes: 176 anchors translated, `header` and `nav` held at `0px` shift in both
+  languages, and no horizontal page overflow appeared. `main` grew `342.64px` in
+  English and `277.86px` in Vietnamese on a `10697px` page, moving the footer
+  down by the same amount; that is the soft-preserve policy on long copy, not a
+  hard-region failure. Restore returned all 178 Japanese nodes with every
+  measured anchor shift back to `0px` and no scroll-height change. Page,
+  console, and backend error counts were zero, and the run removed its profile,
+  its temporary extension copy, and its backend.
+- Defect the live page exposed and this pass fixed: navigation controls laid out
+  as flex containers lost both ends of a clipped label and showed a middle
+  fragment with no ellipsis, because `text-overflow` does not apply to a flex
+  container. English rendered `ent Achi` and Vietnamese `ang ch` in the
+  navigation. The fallback now switches a text-only intrinsic container to block
+  layout and pins the original line-box height, or stops centring when the
+  element has element children. The rerun renders `Devel⋯` and `Tra⋯` with the
+  full text still on the tooltip and `aria-label`.
+- Open finding from the same run: the Vietnamese pass took about three times as
+  long as English on this page, `50.1s` against `18.8s`, which the fixture runs
+  did not show. Cause is not established, so it stays open rather than being
+  attributed to provider latency.
+- Measurement caveat: residual Japanese after a pass varied between 2 and 15
+  nodes of 178 across reruns of the same page. A live SPA keeps loading and
+  re-rendering, so live-site coverage is an observation, not a stable metric.
+- Cleanup defect fixed during this work: the runners spawned `taskkill` by name.
+  Node passes its own `PATH` to `CreateProcess`, so a POSIX-style `PATH` from a
+  Git Bash shell left Windows unable to find it, and the failed spawn emitted an
+  unhandled `error` event that killed a runner mid-cleanup and left Chrome
+  running. Every runner now resolves it under `%SystemRoot%`.
 
 ## Result
 

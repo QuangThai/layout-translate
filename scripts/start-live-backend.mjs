@@ -49,7 +49,12 @@ function normaliseOrigin(value) {
 const env = { ...readEnvFile(), ...process.env };
 const apiKey = env.OPENAI_API_KEY?.trim();
 const model = values("model").at(-1) ?? env.LAYOUT_TRANSLATE_PROVIDER_MODEL?.trim();
-const sites = values("site").map(normaliseOrigin);
+// Flags win over .env so a one-off site does not need an edit, but .env alone
+// is enough for the everyday loop.
+const configuredSites = values("site").length > 0
+  ? values("site")
+  : (env.LAYOUT_TRANSLATE_SITES ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+const sites = [...new Set(configuredSites.map(normaliseOrigin))];
 const port = Number(values("port").at(-1) ?? env.LAYOUT_TRANSLATE_MOCK_PORT ?? DEFAULT_PORT);
 const token = values("token").at(-1) ?? env.LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN ?? DEFAULT_TOKEN;
 
@@ -63,10 +68,12 @@ if (!model) {
 }
 if (sites.length === 0) {
   fail([
-    "At least one --site is required. The backend only accepts page origins you list,",
-    "so a page you have not named is rejected rather than silently translated.",
+    "No page origin is configured. The backend only accepts origins you list, so a",
+    "page you have not named is rejected rather than silently translated.",
     "",
-    "  npm run backend:live -- --model=gpt-4.1-mini --site=https://example.co.jp",
+    "Set LAYOUT_TRANSLATE_SITES in .env, or pass the flag:",
+    "",
+    "  npm run backend:live -- --site=https://example.co.jp",
   ].join("\n"));
 }
 

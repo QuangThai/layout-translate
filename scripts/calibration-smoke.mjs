@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve, sep } from "node:path";
 import { createServer as createTcpServer } from "node:net";
+import { taskkillCommand } from "./process-tree.mjs";
 import {
   classifyFailure,
   readTraceMetadata,
@@ -100,7 +101,7 @@ async function stopProcess(child) {
   if (!child || child.exitCode !== null) return true;
   if (process.platform === "win32") {
     try {
-      execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
+      execFileSync(taskkillCommand(), ["/PID", String(child.pid), "/T", "/F"], {
         stdio: "ignore",
         timeout: CLEANUP_TIMEOUT_MS,
       });
