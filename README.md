@@ -135,8 +135,19 @@ npm run backend:live -- --model=<model-id> --site=https://example.co.jp
 ```
 
 It reads `OPENAI_API_KEY` from `.env`, requires an explicit model and page-origin
-allowlist, and prints the extension configuration to paste. The same server can
-also be started directly with the raw environment variables:
+allowlist, and prints the extension configuration to paste. Configure the model,
+site list, port, and token once in `.env` and the flags become optional.
+
+```bash
+npm run live:site
+```
+
+drives the same journey against a real site with Playwright and writes
+translation coverage, anchor shifts, overflow, clipping, restore, and
+screenshots to `.output/live-site-report.json` and `.output/live-site/`. Those
+artefacts contain real page text and stay out of the repository.
+
+The same server can also be started directly with the raw environment variables:
 
 ```powershell
 $env:LAYOUT_TRANSLATE_PROVIDER = "openai"

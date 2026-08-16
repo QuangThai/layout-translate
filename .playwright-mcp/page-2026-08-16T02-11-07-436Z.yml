@@ -1,0 +1,295 @@
+- generic [ref=e4]:
+  - generic [ref=e5]: NativeAI｜本物のシステム・アプリ・AIを作れる会社 読み込まれました
+  - generic [ref=e9]:
+    - banner [ref=e10]:
+      - link [ref=e11] [cursor=pointer]:
+        - /url: /
+        - img "NativeAI（ネイティブエーアイ）のロゴ" [ref=e12]
+      - navigation [ref=e13]:
+        - generic [ref=e14]:
+          - link "ホーム" [ref=e15] [cursor=pointer]:
+            - /url: /
+          - paragraph [ref=e16]: /
+          - link "リリース" [ref=e17] [cursor=pointer]:
+            - /url: /news
+          - paragraph [ref=e18]: /
+          - link "サービス内容" [ref=e19] [cursor=pointer]:
+            - /url: /service
+          - paragraph [ref=e20]: /
+          - link "事例インタビュー" [ref=e21] [cursor=pointer]:
+            - /url: /case
+          - paragraph [ref=e22]: /
+          - link "開発実績" [ref=e23] [cursor=pointer]:
+            - /url: /projects
+          - paragraph [ref=e24]: /
+          - link "メンバー紹介" [ref=e25] [cursor=pointer]:
+            - /url: /member
+        - link [ref=e26] [cursor=pointer]:
+          - /url: /#contact
+          - paragraph [ref=e28]: お問い合わせ
+        - text: 
+    - main [ref=e29]:
+      - generic [ref=e32]:
+        - generic [ref=e34]:
+          - paragraph [ref=e35]: 最安・最速・最高品質
+          - paragraph [ref=e36]: 本物のシステム・アプリ・AIを作れる会社
+          - paragraph [ref=e37]: "「ITセキュリティ知識のないAI人材」や「生成AIだけで非エンジニアが開発するエセシステム会社」によって、日本のIT産業は危機に瀕しています。システム開発・インフラ構築や運用、\x1fサイバーセキュリティまで、CTO参画による品質保証と本物のエンジニア体制で、正しいシステム開発を最速・最安で実現します。"
+        - generic [ref=e38]:    
+      - generic [ref=e39]:
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - paragraph [ref=e43]: NEWS
+            - heading "リリース" [level=2] [ref=e44]
+          - generic [ref=e45]:
+            - link [ref=e46] [cursor=pointer]:
+              - /url: /article/doyu-2604
+              - generic [ref=e47]:
+                - paragraph [ref=e48]: 2026/04/30
+                - paragraph [ref=e49]: 東京中小企業家同友会八王子支部様の総会記念講演会にて、AI経営の専門家として講演しました。
+            - link [ref=e50] [cursor=pointer]:
+              - /url: /article/ai-marketing-vision-2025
+              - generic [ref=e51]:
+                - paragraph [ref=e52]: 2026/01/13
+                - paragraph [ref=e53]: 東大松尾研発のAI企業が主催するカンファレンスに、AI開発の専門家として代表の石塚が登壇しました。
+          - link "もっと見る keyboard_arrow_right" [ref=e54] [cursor=pointer]:
+            - /url: /news
+            - generic [ref=e55]:
+              - paragraph [ref=e56]: もっと見る
+              - generic [ref=e57]: keyboard_arrow_right
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - paragraph [ref=e61]: SERVICE
+            - heading "サービス内容" [level=2] [ref=e62]
+          - generic [ref=e63]:
+            - generic [ref=e67]:
+              - paragraph [ref=e69]: "01"
+              - paragraph [ref=e70]: AI駆動型開発・保守運用支援
+              - link "詳細を見る keyboard_arrow_right" [ref=e71] [cursor=pointer]:
+                - /url: /service/ai-driven
+                - generic [ref=e72]:
+                  - paragraph [ref=e73]: 詳細を見る
+                  - generic [ref=e74]: keyboard_arrow_right
+            - generic [ref=e78]:
+              - paragraph [ref=e80]: "02"
+              - paragraph [ref=e81]: AIサービス・AIプロダクト立ち上げ支援
+              - link "詳細を見る keyboard_arrow_right" [ref=e82] [cursor=pointer]:
+                - /url: /service/launch
+                - generic [ref=e83]:
+                  - paragraph [ref=e84]: 詳細を見る
+                  - generic [ref=e85]: keyboard_arrow_right
+            - generic [ref=e89]:
+              - paragraph [ref=e91]: "03"
+              - paragraph [ref=e92]: AI機能開発・改善・運用支援
+              - link "詳細を見る keyboard_arrow_right" [ref=e93] [cursor=pointer]:
+                - /url: /service/develop
+                - generic [ref=e94]:
+                  - paragraph [ref=e95]: 詳細を見る
+                  - generic [ref=e96]: keyboard_arrow_right
+            - generic [ref=e100]:
+              - paragraph [ref=e102]: "04"
+              - paragraph [ref=e103]: バクソクプロト開発支援(PoC)
+              - link "詳細を見る keyboard_arrow_right" [ref=e104] [cursor=pointer]:
+                - /url: /service/poc
+                - generic [ref=e105]:
+                  - paragraph [ref=e106]: 詳細を見る
+                  - generic [ref=e107]: keyboard_arrow_right
+            - link "\"サービス内容\"をもっと見る keyboard_arrow_right" [ref=e109] [cursor=pointer]:
+              - /url: /service
+              - generic [ref=e110]:
+                - paragraph [ref=e111]: "\"サービス内容\"をもっと見る"
+                - generic [ref=e112]: keyboard_arrow_right
+        - generic [ref=e114]:
+          - generic [ref=e115]:
+            - paragraph [ref=e116]: CASE
+            - heading "事例インタビュー" [level=2] [ref=e117]
+          - generic [ref=e118]:
+            - list [ref=e119]:
+              - listitem [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]:
+                    - paragraph [ref=e124]: 事例インタビュー
+                    - generic [ref=e126]:
+                      - paragraph [ref=e127]: 株式会社AdAI - マーケティング支援
+                      - link "「もう開発会社選びで失敗したくなかったんです」事業目線と技術目線が両立する、NativeAI式の\"任せられる\"開発体制。" [ref=e128] [cursor=pointer]:
+                        - /url: /interview/adai
+                  - paragraph [ref=e129]: 開発会社に依頼したはずのプロジェクトがズレたまま進み、手応えのない成果物が上がってくる…。本事例は、そんな開発の“失敗体験”を経て、再び立ち上がろうとするAdAI社（アドエーアイ）からのご相談でした。...
+            - list [ref=e130]:
+              - listitem [ref=e131]:
+                - generic [ref=e132]:
+                  - generic [ref=e133]:
+                    - paragraph [ref=e135]: 事例インタビュー
+                    - generic [ref=e137]:
+                      - paragraph [ref=e138]: 株式会社Gloavant - ITコンサルティング
+                      - link "「\"その機能って本当に必要ですか？\"に本物を感じた。」 開発リソースの提供だけじゃない、パートナー並走が支えた\"NativeAI式PoC\"のリアル。" [ref=e139] [cursor=pointer]:
+                        - /url: /interview/gloavant
+                  - paragraph [ref=e140]: 本事例でのご依頼は、新規事業であるAI通訳ツール「Gloavant(グローバント)」の構想を形にするための開発支援です。新規事業の立ち上げに向けて、限られた期間と予算の中でプロトタイプを開発し、技術的...
+          - link "\"事例インタビュー\"をもっと見る keyboard_arrow_right" [ref=e142] [cursor=pointer]:
+            - /url: /case
+            - generic [ref=e143]:
+              - paragraph [ref=e144]: "\"事例インタビュー\"をもっと見る"
+              - generic [ref=e145]: keyboard_arrow_right
+        - generic [ref=e147]:
+          - generic [ref=e148]:
+            - paragraph [ref=e149]: PROJECTS
+            - heading "開発実績" [level=2] [ref=e150]
+          - generic [ref=e151]:
+            - list [ref=e152]:
+              - listitem [ref=e153]:
+                - generic [ref=e154]:
+                  - paragraph [ref=e155]: AI分析＋動画配信サービス
+                  - paragraph [ref=e157]: Webinar Stock
+                  - paragraph [ref=e158]: WebinarStockは、ウェビナー動画を埋もれさせず、アーカイブ配信で継続的にリード獲得できる、掲載無料・完全成果報酬型サービス。
+                  - list [ref=e159]:
+                    - listitem [ref=e160]:
+                      - generic [ref=e161]: 
+                      - paragraph [ref=e162]: フェーズ：プロトタイプ(PoC)+β版(MVP)開発
+                  - list [ref=e163]:
+                    - listitem [ref=e164]:
+                      - generic [ref=e165]: 
+                      - paragraph [ref=e166]: 期間：6ヶ月
+                  - list [ref=e167]:
+                    - listitem [ref=e168]:
+                      - generic [ref=e169]: 
+                      - paragraph [ref=e170]: 0からの新規AIサービス立ち上げ支援
+                  - list [ref=e171]:
+                    - listitem [ref=e172]:
+                      - generic [ref=e173]: 
+                      - paragraph [ref=e174]: β版(MVP)リリース後も追加の新規機能開発を継続支援中
+                  - link "事例を読む keyboard_arrow_right" [ref=e175] [cursor=pointer]:
+                    - /url: /interview/adai
+                    - generic [ref=e176]:
+                      - paragraph [ref=e177]: 事例を読む
+                      - generic [ref=e178]: keyboard_arrow_right
+            - list [ref=e179]:
+              - listitem [ref=e180]:
+                - generic [ref=e181]:
+                  - paragraph [ref=e182]: AIマッチング＋案件管理SaaS
+                  - paragraph [ref=e184]: SES MATCHER
+                  - paragraph [ref=e185]: 「SES MATCHER」は、SES営業に特化した業務支援ツールです。AIが営業メールを解析して案件情報を自動で整理・構造化し、エンジニアとのマッチング、提案文の生成、進捗管理まで営業プロセス全体を効...
+                  - list [ref=e186]:
+                    - listitem [ref=e187]:
+                      - generic [ref=e188]: 
+                      - paragraph [ref=e189]: フェーズ：β版(MVP)開発
+                  - list [ref=e190]:
+                    - listitem [ref=e191]:
+                      - generic [ref=e192]: 
+                      - paragraph [ref=e193]: 期間：4ヶ月
+                  - list [ref=e194]:
+                    - listitem [ref=e195]:
+                      - generic [ref=e196]: 
+                      - paragraph [ref=e197]: PoC後のβ版(MVP)リリースに向けた開発案件
+                  - list [ref=e198]:
+                    - listitem [ref=e199]:
+                      - generic [ref=e200]: 
+                      - paragraph [ref=e201]: 開発PMとエンジニアリソースの確保を行い支援
+                  - link "事例を読む keyboard_arrow_right" [ref=e202] [cursor=pointer]:
+                    - /url: /interview/kops
+                    - generic [ref=e203]:
+                      - paragraph [ref=e204]: 事例を読む
+                      - generic [ref=e205]: keyboard_arrow_right
+          - text:        
+          - link "\"開発実績\"をもっと見る keyboard_arrow_right" [ref=e207] [cursor=pointer]:
+            - /url: /projects
+            - generic [ref=e208]:
+              - paragraph [ref=e209]: "\"開発実績\"をもっと見る"
+              - generic [ref=e210]: keyboard_arrow_right
+        - generic [ref=e212]:
+          - generic [ref=e213]:
+            - paragraph [ref=e214]: MEMBER
+            - heading "メンバー紹介" [level=2] [ref=e215]
+          - generic [ref=e217]:
+            - generic [ref=e218]:
+              - paragraph [ref=e219]: Founder CEO - 創業代表
+              - listitem [ref=e220]:
+                - generic [ref=e221]:
+                  - generic [ref=e222]:
+                    - paragraph [ref=e223]: 石塚 卓也
+                    - paragraph [ref=e224]: Takuya Ishizuka
+                  - paragraph [ref=e225]: 連続起業家。上智大学卒。シリコンバレーや日系のベンチャーなどを経て起業。人材ベンチャーやSaaSスタートアップなど、様々な形で複数回の起業や事業立ち上げを経験。現在はIT/AI領域の会社を複数経営。
+            - generic [ref=e226]:
+              - paragraph [ref=e227]: CTO - 技術責任者
+              - listitem [ref=e228]:
+                - generic [ref=e229]:
+                  - generic [ref=e230]:
+                    - paragraph [ref=e231]: 志手 俊希
+                    - paragraph [ref=e232]: Toshiki Shite
+                  - paragraph [ref=e233]: 青山学院大学卒。ワークスアプリケーションズにてSaaS型ERPの開発を行い、インド・シンガポールとの共同開発などに従事。後にSaaSスタートアップのCTOとしてM&AにてEXITを経験。
+            - generic [ref=e234]:
+              - paragraph [ref=e235]: CAIO - AI責任者
+              - listitem [ref=e236]:
+                - generic [ref=e237]:
+                  - generic [ref=e238]:
+                    - paragraph [ref=e239]: 遠藤 巧巳
+                    - paragraph [ref=e240]: Takumi Endoh
+                  - paragraph [ref=e241]: システム開発歴10年以上。プログラマーからプロジェクトマネージャーまで一通り経験。生成AI・AIエージェントの専門家として、「AIネイティブな会社の作り方」をテーマにnote/xにて情報を日々発信。
+        - text:                    
+    - generic [ref=e244]:
+      - generic [ref=e245]:
+        - paragraph [ref=e246]: Contact
+        - heading "お問い合わせ (ご相談/お見積り)" [level=2] [ref=e247]: お問い合わせ(ご相談/お見積り)
+      - paragraph [ref=e249]: 当サービスにご興味を持っていただきありがとうございます。AI駆動開発やサイバーセキュリティサービスに関するご相談に関しては、下記フォームよりお気軽にお問い合わせください。
+      - generic [ref=e250]:
+        - generic [ref=e251]:
+          - generic [ref=e252]:
+            - paragraph [ref=e253]: 御社名
+            - paragraph [ref=e254]: "*"
+          - textbox "御社名 *" [ref=e255]:
+            - /placeholder: 株式会社◯◯◯◯◯
+        - generic [ref=e256]:
+          - generic [ref=e257]:
+            - paragraph [ref=e258]: ご担当者名
+            - paragraph [ref=e259]: "*"
+          - textbox "ご担当者名 *" [ref=e260]:
+            - /placeholder: 山田 太郎
+        - generic [ref=e261]:
+          - generic [ref=e262]:
+            - paragraph [ref=e263]: メールアドレス
+            - paragraph [ref=e264]: "*"
+          - textbox "メールアドレス *" [ref=e265]:
+            - /placeholder: mail@xxxx.xxxx
+        - generic [ref=e266]:
+          - generic [ref=e268]:
+            - paragraph [ref=e269]: 内容
+            - paragraph [ref=e270]: "*"
+          - textbox "内容 *" [ref=e271]:
+            - /placeholder: （例1）AIサービスを立ち上げたいと思っているのですが、実現性を確かめたいので相談させてください。（例2）サイバーセキュリティに関して不安なので、無料相談を希望したいです。
+        - generic [ref=e272]:
+          - link "プライバシーポリシーを確認する" [ref=e273] [cursor=pointer]:
+            - /url: /privacypolicy
+          - generic [ref=e274]:
+            - checkbox "プライバシーポリシーに同意する" [ref=e275]
+            - generic [ref=e276]: プライバシーポリシーに同意する
+        - button [ref=e277] [cursor=pointer]:
+          - paragraph [ref=e278]: 送 信
+    - contentinfo [ref=e279]:
+      - generic [ref=e280]:
+        - generic [ref=e281]:
+          - generic [ref=e282]:
+            - img "NativeAI（ネイティブエーアイ）ロゴ" [ref=e283]
+            - link "ホーム" [ref=e284] [cursor=pointer]:
+              - /url: /
+            - link "サービス内容" [ref=e285] [cursor=pointer]:
+              - /url: /service
+            - link "・AI駆動型開発・運用支援" [ref=e286] [cursor=pointer]:
+              - /url: /service/ai-driven
+            - link "・AIサービス・AI SaaS立ち上げ支援" [ref=e287] [cursor=pointer]:
+              - /url: /service/launch
+            - link "・既存システムへのAI機能開発/改善支援" [ref=e288] [cursor=pointer]:
+              - /url: /service/develop
+            - link "・バクソクプロト開発支援(PoC)" [ref=e289] [cursor=pointer]:
+              - /url: /service/poc
+            - link "事例インタビュー" [ref=e290] [cursor=pointer]:
+              - /url: /case
+            - link "開発実績" [ref=e291] [cursor=pointer]:
+              - /url: /projects
+            - link "メンバー紹介" [ref=e292] [cursor=pointer]:
+              - /url: /member
+            - link "リリース" [ref=e293] [cursor=pointer]:
+              - /url: /news
+          - generic [ref=e294]:
+            - paragraph [ref=e295]: 株式会社NativeAI
+            - paragraph [ref=e296]: 東京都中央区京橋三丁目3番13号平和ビル三号館3F
+        - generic [ref=e298]:
+          - link "プライバシーポリシー" [ref=e299] [cursor=pointer]:
+            - /url: /privacypolicy
+          - paragraph [ref=e300]: ©2026 NativeAI Inc.

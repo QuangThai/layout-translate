@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { createServer as createTcpServer } from "node:net";
+import { taskkillCommand } from "./process-tree.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(repositoryRoot, ".output", "chrome-mv3");
@@ -301,7 +302,7 @@ async function stopProcess(child) {
   if (!child || child.exitCode !== null) return;
   try {
     if (process.platform === "win32") {
-      spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
+      spawn(taskkillCommand(), ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore", windowsHide: true });
     } else {
       child.kill("SIGTERM");
     }

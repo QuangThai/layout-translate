@@ -590,11 +590,7 @@ export class PageTranslationEngine {
     }
 
     if (record.mode === "critical") {
-      this.setOwnedStyle(record.element, "overflow", "hidden");
-      this.setOwnedStyle(record.element, "text-overflow", "ellipsis");
-      this.setOwnedStyle(record.element, "white-space", "nowrap");
-      this.setOwnedAttribute(record.element, "title", record.translation.full);
-      this.setOwnedAttribute(record.element, "aria-label", record.translation.full);
+      this.applyEllipsisFallback(record);
       record.displayedText = record.translation.full;
       record.fallback = "ellipsis-tooltip";
       return;
@@ -608,13 +604,44 @@ export class PageTranslationEngine {
     }
 
     this.setNodeText(record, record.translation.full);
+    this.applyEllipsisFallback(record);
+    record.displayedText = record.translation.full;
+    record.fallback = "ellipsis-tooltip";
+  }
+
+  /**
+   * Clips overflowing text to the box and exposes the full value through the
+   * tooltip and accessible name.
+   *
+   * `text-overflow` only applies to a block container. A control laid out as a
+   * flex or grid container centres its text as an anonymous item instead, so on
+   * a real site this clipped the label at both ends and showed an unreadable
+   * middle fragment with no ellipsis. When the element holds nothing but this
+   * text, switching it to block layout restores the ellipsis; the original line
+   * box height is pinned as `line-height` so the text stays vertically centred.
+   * When the element has element children, flex layout is load-bearing, so the
+   * safe change is to stop centring and clip only the end.
+   */
+  private applyEllipsisFallback(record: SourceRecord): void {
+    if (!record.translation) return;
+    const computed = window.getComputedStyle(record.element);
+    const isIntrinsicContainer = ["flex", "inline-flex", "grid", "inline-grid"].includes(computed.display);
+
+    if (isIntrinsicContainer) {
+      if (record.element.childElementCount === 0) {
+        const height = record.beforeGeometry?.height ?? 0;
+        this.setOwnedStyle(record.element, "display", computed.display.startsWith("inline") ? "inline-block" : "block");
+        if (height > 0) this.setOwnedStyle(record.element, "line-height", `${height}px`);
+      } else {
+        this.setOwnedStyle(record.element, "justify-content", "flex-start");
+      }
+    }
+
     this.setOwnedStyle(record.element, "overflow", "hidden");
     this.setOwnedStyle(record.element, "text-overflow", "ellipsis");
     this.setOwnedStyle(record.element, "white-space", "nowrap");
     this.setOwnedAttribute(record.element, "title", record.translation.full);
     this.setOwnedAttribute(record.element, "aria-label", record.translation.full);
-    record.displayedText = record.translation.full;
-    record.fallback = "ellipsis-tooltip";
   }
 
   private preserveMediumRegion(record: SourceRecord): boolean {
