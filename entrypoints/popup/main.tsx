@@ -59,7 +59,8 @@ function Popup() {
       }
       if (site.tabId !== undefined) {
         await browser.scripting.executeScript({
-          target: { tabId: site.tabId },
+          // Frames of the granted origin are part of the same page to a reader.
+          target: { tabId: site.tabId, allFrames: true },
           files: [CONTENT_SCRIPT_FILE],
         });
       }

@@ -58,6 +58,10 @@ const TRANSLATIONS = {
   部品の説明: { en: "About this component", vi: "Giới thiệu thành phần" },
   後から追加: { en: "Added later", vi: "Thêm sau" },
   閉じた部品: { en: "Closed component", vi: "Thành phần đóng" },
+  枠つき内容: { en: "Framed content", vi: "Nội dung trong khung" },
+  枠内の見出し: { en: "Heading inside the frame", vi: "Tiêu đề trong khung" },
+  枠内の本文: { en: "Body text inside the frame", vi: "Nội dung trong khung" },
+  枠内の入力欄: { en: "Field inside the frame", vi: "Ô nhập trong khung" },
 };
 
 // Proves the assertions can fail: with translations withheld the page stays
@@ -322,6 +326,53 @@ async function main() {
     // shadowRoot, so its text cannot be reached by anything, including us.
     check("a closed shadow root stays unreachable", shadow.closedReachable === false, String(shadow.closedReachable));
     report.phases.shadow = { provider: since(shadowMark), values: shadow };
+
+    // 1d. A same-origin frame, which is its own document with its own DOM.
+    const frameMark = mark();
+    const readFrame = async () => {
+      const frame = page.frames().find((candidate) => candidate.url().endsWith("dynamic-frame.html"));
+      if (!frame) return { present: false };
+      return {
+        present: true,
+        heading: await frame.evaluate(() =>
+          document.querySelector("[data-probe='frame-heading']")?.textContent?.trim() ?? null).catch(() => null),
+        body: await frame.evaluate(() =>
+          document.querySelector("[data-probe='frame-body']")?.textContent?.trim() ?? null).catch(() => null),
+        placeholder: await frame.evaluate(() =>
+          document.querySelector("[data-probe='frame-input']")?.getAttribute("placeholder") ?? null).catch(() => null),
+      };
+    };
+    const frameDeadline = Date.now() + 25_000;
+    let frameValues = await readFrame();
+    while (Date.now() < frameDeadline) {
+      frameValues = await readFrame();
+      if (frameValues.present
+        && ![frameValues.heading, frameValues.body, frameValues.placeholder]
+          .some((value) => value === null || JAPANESE.test(value))) break;
+      await sleep(400);
+    }
+    check("the same-origin frame is reachable", frameValues.present === true);
+    check(
+      "text inside a same-origin frame is translated",
+      frameValues.heading === expectation("枠内の見出し", "en") && frameValues.body === expectation("枠内の本文", "en"),
+      JSON.stringify(frameValues),
+    );
+    check(
+      "attributes inside a frame are translated",
+      frameValues.placeholder === expectation("枠内の入力欄", "en"),
+      frameValues.placeholder,
+    );
+    // The popup shows one number for a page the reader sees as one page.
+    const aggregated = await popup.evaluate(async () => {
+      const response = await chrome.runtime.sendMessage({ type: "GET_STATE" });
+      return { status: response?.state?.status ?? null, translatedAnchors: response?.state?.translatedAnchors ?? 0 };
+    });
+    check(
+      "the popup counts anchors from every frame",
+      aggregated.translatedAnchors > 0,
+      JSON.stringify(aggregated),
+    );
+    report.phases.frame = { provider: since(frameMark), values: frameValues, aggregated };
 
     // 2. Content appended while scrolling.
     const scrollMark = mark();

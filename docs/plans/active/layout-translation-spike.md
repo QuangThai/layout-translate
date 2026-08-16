@@ -166,6 +166,11 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Translate same-origin frames. Each frame runs its own engine and reports
+  its own state, and the background folds those reports into the single state
+  the popup shows. Translation requests now carry the frame's own origin instead
+  of the tab's, so a cross-origin frame cannot have its content attributed to an
+  allowlisted top-level origin.
 - [x] Reach text behind a shadow boundary. Every open shadow root, however
   deeply nested, is walked and observed in its own right, so web component text,
   its attributes, its slotted light DOM, and content it adds after first render
@@ -532,6 +537,17 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Frame proof: the dynamic fixture embeds a same-origin frame whose heading,
+  body text, and input placeholder are all translated, and the popup reports the
+  anchors of every frame as one number rather than whichever frame reported
+  last. The aggregation prefers the state that most needs attention, so one
+  non-Japanese frame cannot make a translated tab look unsupported, and it is
+  covered by focused tests.
+- Origin-attribution defect found while adding frames: translation requests used
+  the tab's URL as the page origin. For a same-origin frame that is the same
+  value, but a cross-origin frame would have had its content attributed to the
+  allowlisted top-level origin and passed a check that was never granted for it.
+  Requests now carry the frame's own URL.
 - Shadow-boundary proof: the dynamic fixture now hosts a component whose text
   lives in an open shadow root, containing a second component with its own
   shadow root, a slotted light-DOM node, an attribute, and a paragraph the

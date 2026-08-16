@@ -50,6 +50,10 @@ It must not rewrite the site's structural layout by default.
 Owns extension runtime coordination:
 
 - popup/content-script messaging;
+- folding the per-frame reports of one tab into the single state the popup
+  shows, since each frame runs its own engine and knows only about itself;
+- attributing a translation request to the frame's own origin rather than the
+  tab's, so a cross-origin frame cannot inherit a top-level grant;
 - durable extension settings and session state;
 - backend authentication/session integration;
 - privileged extension operations where required.

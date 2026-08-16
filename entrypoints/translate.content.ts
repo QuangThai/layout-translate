@@ -4,6 +4,10 @@ import { MAX_TRANSLATION_BATCH_ITEMS, type ContentMessage, type RuntimeMessage, 
 
 export default defineContentScript({
   matches: ["http://localhost/*", "http://127.0.0.1/*"],
+  // A frame is a separate document with its own DOM, so an untranslated iframe
+  // is a hole in the page that nothing reports. Each frame runs its own engine
+  // and reports its own state; the background folds those into one.
+  allFrames: true,
   runAt: "document_idle",
   main(ctx) {
     // On opt-in sites this file is injected programmatically, and the popup can

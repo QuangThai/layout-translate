@@ -8,8 +8,14 @@ import {
   type RuntimeResponse,
 } from "../src/shared/contracts";
 import { translateViaBackend } from "../src/shared/backend-client";
+import { aggregateFrameStates, type FrameReport } from "../src/shared/frame-state";
 
 const STORAGE_KEY = "layout-translate:state";
+
+// Per tab, per frame. A reader sees one page, so the popup needs one state, but
+// each frame runs its own engine and only knows about itself. This lives in
+// memory: the service worker can be suspended, and frames simply report again.
+const frameReports = new Map<number, Map<number, FrameReport>>();
 async function readBackendConfig(): Promise<BackendConfig> {
   const stored = await browser.storage.local.get("layout-translate:backend");
   const configured = stored["layout-translate:backend"] as Partial<BackendConfig> | undefined;
@@ -63,7 +69,7 @@ async function sendToActiveTab(command: ContentCommand): Promise<boolean> {
 
 async function handleMessage(
   message: RuntimeMessage,
-  sender: { tab?: { id?: number; url?: string } },
+  sender: { tab?: { id?: number; url?: string }; url?: string; frameId?: number },
 ): Promise<RuntimeResponse> {
   const state = await readState();
 
@@ -73,9 +79,13 @@ async function handleMessage(
     case "TRANSLATE_BATCH": {
       try {
         const config = await readBackendConfig();
+        // The frame's own URL, not the tab's. A cross-origin frame would
+        // otherwise have its content attributed to the top-level origin and
+        // pass an allowlist check that was never granted for it.
+        const frameUrl = sender.url ?? sender.tab?.url;
         const translations = await translateViaBackend(
           config,
-          sender.tab?.url ? new URL(sender.tab.url).origin : "",
+          frameUrl ? new URL(frameUrl).origin : "",
           message.requests,
           message.targetLanguage,
         );
@@ -93,11 +103,20 @@ async function handleMessage(
       return { type: "ACK", state, delivered };
     }
     case "CONTENT_STATUS": {
-      const nextState = {
-        ...state,
+      const tabId = sender.tab?.id;
+      const frames = frameReports.get(tabId ?? -1) ?? new Map<number, FrameReport>();
+      frames.set(sender.frameId ?? 0, {
         status: message.status,
         translatedAnchors: message.translatedAnchors,
-        lastError: message.error,
+        ...(message.error === undefined ? {} : { lastError: message.error }),
+      });
+      frameReports.set(tabId ?? -1, frames);
+      const aggregate = aggregateFrameStates(frames.values());
+      const nextState = {
+        ...state,
+        status: aggregate.status,
+        translatedAnchors: aggregate.translatedAnchors,
+        lastError: aggregate.lastError,
       };
       await writeState(nextState);
       return { type: "ACK", state: nextState };
@@ -147,6 +166,10 @@ async function broadcast(command: ContentCommand): Promise<void> {
 export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => {
     void readState().then((state) => writeState(state));
+  });
+  browser.tabs.onRemoved.addListener((tabId) => frameReports.delete(tabId));
+  browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === "loading") frameReports.delete(tabId);
   });
   browser.storage.onChanged.addListener((changes, area) => {
     // Reusing a translation locally is only sound while it is still attributable

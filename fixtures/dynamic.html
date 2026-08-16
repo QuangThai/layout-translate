@@ -60,6 +60,13 @@
         <div class="deferred" data-deferred></div>
       </section>
 
+      <!-- A same-origin frame is a separate document with its own DOM, so it
+           needs its own engine or it stays an untranslated hole in the page. -->
+      <section class="frame-panel" aria-labelledby="frame-heading-label">
+        <h2 id="frame-heading-label">枠つき内容</h2>
+        <iframe class="page-frame" data-probe="frame" src="dynamic-frame.html" title="枠つき内容" width="320" height="140"></iframe>
+      </section>
+
       <!-- Text inside web components. A TreeWalker and a MutationObserver both
            stop at a shadow boundary, so this content is invisible unless every
            open shadow root is walked and observed in its own right. -->
