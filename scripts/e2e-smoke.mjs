@@ -21,6 +21,10 @@ const POC_HARD_SHIFT_TOLERANCE_PX = 5;
 
 const CLEANUP_TIMEOUT_MS = 5_000;
 
+// The browser names the reason it refused an extension, and the failure that
+// reports it lives in another function, so the buffer is shared.
+const browserStderr = [];
+
 function browserTraceName(chromePath) {
   return chromePath.split(/[\\\\/]/u).pop() ?? "chrome";
 }
@@ -331,7 +335,6 @@ async function main() {
   const consoleErrors = [];
   const logErrors = [];
   const backendFailureRequestIds = new Set();
-  const browserStderr = [];
   const backendTrace = { responseCount: 0, requestIds: [], stderrLineCount: 0 };
   let report = {
     schema: "layout-translate/e2e-report/v1",
