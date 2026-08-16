@@ -72,6 +72,12 @@ export type ContentCommand =
   | { type: "SYNC_STATE"; state: ExtensionState }
   | { type: "SET_ENABLED"; enabled: boolean }
   | { type: "SET_TARGET_LANGUAGE"; targetLanguage: TargetLanguage }
+  /**
+   * Locally reused translations belong to the backend that produced them, so a
+   * configuration change drops them rather than serving results the current
+   * backend never returned.
+   */
+  | { type: "INVALIDATE_TRANSLATIONS" }
   | { type: "RESTORE_ORIGINAL" };
 
 export type RuntimeMessage =

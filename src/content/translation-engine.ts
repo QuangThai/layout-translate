@@ -17,6 +17,7 @@ import {
   needsCompactBudget,
 } from "../shared/text-fit";
 import { mockTranslateBatch } from "../shared/mock-translation";
+import { TranslationMemo } from "../shared/translation-memo";
 
 interface SourceRecord {
   anchorId: string;
@@ -215,6 +216,7 @@ export class PageTranslationEngine {
   private readonly sourceByElementSlot = new WeakMap<HTMLElement, Map<number, string>>();
   private readonly presentationStates = new WeakMap<HTMLElement, PresentationState>();
   private readonly ownWriteCounts = new WeakMap<Text, number>();
+  private readonly memo = new TranslationMemo();
   private nextAnchor = 1;
   private observer?: MutationObserver;
   private scanTimer?: number;
@@ -283,6 +285,9 @@ export class PageTranslationEngine {
       case "SET_TARGET_LANGUAGE":
         this.setTargetLanguage(command.targetLanguage);
         break;
+      case "INVALIDATE_TRANSLATIONS":
+        this.memo.clear();
+        break;
       case "RESTORE_ORIGINAL":
         this.restoreOriginal();
         break;
@@ -347,9 +352,24 @@ export class PageTranslationEngine {
       await this.reportStatus("translating", this.records.size);
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       const rendered: SourceRecord[] = [];
+      this.memo.useLanguage(requestedLanguage);
+      const groups = this.groupPendingRecords(pending);
+      // Text the page has shown before is rendered from the memo, so a ticker
+      // cycling through the same few strings stops buying them again.
+      const outstanding = groups.filter((group) => {
+        const remembered = this.memo.get(group.request);
+        if (!remembered) return true;
+        for (const record of group.records) {
+          record.translation = { anchorId: record.anchorId, full: remembered.full, compact: remembered.compact };
+          record.translatedTarget = requestedLanguage;
+          this.renderRecord(record);
+          rendered.push(record);
+        }
+        return false;
+      });
       try {
         await this.translateGroups(
-          chunkItems(this.groupPendingRecords(pending), TRANSLATION_CHUNK_SIZE),
+          chunkItems(outstanding, TRANSLATION_CHUNK_SIZE),
           requestedLanguage,
           scanVersion,
           rendered,
@@ -420,12 +440,23 @@ export class PageTranslationEngine {
         current.map((group) => group.request),
         requestedLanguage,
       );
-      // A stale response must not paint over a newer language or a restore.
-      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       const resultById = correlateTranslationResults(
         current.map((group) => group.request.anchorId),
         results,
       );
+      // Keep what was already paid for even when this pass is no longer the
+      // current one. A page that mutates mid-flight used to discard finished
+      // translations and buy them again on the next pass. A response that
+      // arrives after the reader turned translation off or switched language is
+      // a different matter: it must not repopulate what those actions cleared.
+      if (this.canMemoize(requestedLanguage)) {
+        for (const group of current) {
+          const result = resultById.get(group.request.anchorId);
+          if (result) this.memo.remember(group.request, result);
+        }
+      }
+      // A stale response must still not paint over a newer language or a restore.
+      if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       for (const group of current) {
         const result = resultById.get(group.request.anchorId);
         if (!result) {
@@ -448,6 +479,15 @@ export class PageTranslationEngine {
     record.translation = undefined;
     record.fallback = undefined;
     record.displayedText = undefined;
+  }
+
+  /**
+   * Looser than {@link isCurrentTranslation}: ordinary DOM churn invalidates a
+   * pass but does not make its finished translations worthless, whereas turning
+   * translation off or changing language does.
+   */
+  private canMemoize(requestedLanguage: TargetLanguage): boolean {
+    return this.enabled && !this.stopped && this.targetLanguage === requestedLanguage;
   }
 
   private isCurrentTranslation(scanVersion: number, requestedLanguage: TargetLanguage): boolean {
@@ -791,6 +831,10 @@ export class PageTranslationEngine {
     this.enabled = false;
     this.translationVersion += 1;
     this.rescanRequested = false;
+    // Restore is an explicit "give me the original page", so the next pass
+    // starts from the backend rather than from what this session happened to
+    // have reused locally.
+    this.memo.clear();
     for (const record of this.records.values()) {
       if (record.node.isConnected) this.writeOwnedText(record.node, `${record.prefix}${record.source}${record.suffix}`);
       this.restorePresentation(record);

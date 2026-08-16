@@ -137,9 +137,22 @@ async function handleMessage(
   }
 }
 
+async function broadcast(command: ContentCommand): Promise<void> {
+  const tabs = await browser.tabs.query({});
+  await Promise.all(tabs
+    .filter((tab) => /^https?:\/\//u.test(tab.url ?? ""))
+    .map((tab) => sendToTab(tab.id, command)));
+}
+
 export default defineBackground(() => {
   browser.runtime.onInstalled.addListener(() => {
     void readState().then((state) => writeState(state));
+  });
+  browser.storage.onChanged.addListener((changes, area) => {
+    // Reusing a translation locally is only sound while it is still attributable
+    // to the configured backend.
+    if (area !== "local" || !("layout-translate:backend" in changes)) return;
+    void broadcast({ type: "INVALIDATE_TRANSLATIONS" });
   });
   browser.runtime.onMessage.addListener((message: RuntimeMessage, sender) =>
     handleMessage(message, sender),

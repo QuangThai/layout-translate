@@ -1101,6 +1101,12 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(JSON.stringify({ result: "failed", errorCode: classifyFailure(error) }));
+  // The classification alone cannot be acted on; the assertion that failed is
+  // what a reader needs. It names an expectation, not page content.
+  console.error(JSON.stringify({
+    result: "failed",
+    errorCode: classifyFailure(error),
+    reason: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400),
+  }));
   process.exitCode = 1;
 });

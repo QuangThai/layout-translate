@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>動的ページ検証フィクスチャ</title>
+    <link rel="stylesheet" href="dynamic.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <span class="brand" translate="no">Dynamic Fixture</span>
+      <nav aria-label="ナビゲーション">
+        <a href="#feed">記事一覧</a>
+        <a href="#deferred">詳細情報</a>
+      </nav>
+    </header>
+
+    <main>
+      <!-- A label next to a continuously animating element. The animation never
+           changes text, so it must never cost a translation. -->
+      <section class="motion-panel" aria-labelledby="motion-heading">
+        <h2 id="motion-heading">進行状況</h2>
+        <div class="motion-row">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="motion-label" data-probe="motion">処理中です</span>
+        </div>
+      </section>
+
+      <!-- The page owns this text and keeps rewriting it. The engine must show
+           the translation of whatever the page currently says, never a stale
+           value, and must not fight the page for ownership. -->
+      <section class="ticker-panel" aria-labelledby="ticker-heading">
+        <h2 id="ticker-heading">状態</h2>
+        <p class="ticker" data-probe="ticker" aria-live="off">更新中</p>
+        <p class="ticker-note">ページが定期的にこの文字列を書き換えます。</p>
+      </section>
+
+      <!-- Rows are reused rather than recreated, the way a virtualised list
+           recycles nodes. A recycled row must show its current text. -->
+      <section class="recycler-panel" aria-labelledby="recycler-heading">
+        <h2 id="recycler-heading">一覧</h2>
+        <ul class="recycler">
+          <li data-probe="row-0">新着</li>
+          <li data-probe="row-1">完了しました</li>
+          <li data-probe="row-2">詳細情報</li>
+        </ul>
+      </section>
+
+      <!-- Content that only exists once the reader scrolls to it. -->
+      <section class="feed-panel" id="feed" aria-labelledby="feed-heading">
+        <h2 id="feed-heading">記事一覧</h2>
+        <div class="feed" data-feed></div>
+        <div class="sentinel" data-sentinel aria-hidden="true"></div>
+        <p class="feed-status" data-feed-status>読み込み中</p>
+      </section>
+
+      <!-- A section whose content is injected only when it is revealed. -->
+      <section class="deferred-panel" id="deferred" aria-labelledby="deferred-heading">
+        <h2 id="deferred-heading">詳細情報</h2>
+        <div class="deferred" data-deferred></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span data-probe="footer">補足説明</span>
+    </footer>
+
+    <script src="dynamic.js"></script>
+  </body>
+</html>
