@@ -145,6 +145,38 @@ The report at `.output/live-site-report.json` and the screenshots under
 `.output/live-site/` contain real page text. `.output/` is gitignored; treat
 those files as the site's content, not as repository artefacts.
 
+## Running it as a service
+
+The development server above authenticates with one shared token, which cannot
+attribute a budget or remove a single user. For an internal deployment, run it
+in identity mode instead, per
+[`docs/decisions/0006-backend-identity-and-budget.md`](../decisions/0006-backend-identity-and-budget.md):
+
+```bash
+LAYOUT_TRANSLATE_AUTH_MODE=identity                                       \
+LAYOUT_TRANSLATE_OIDC_ISSUER=https://accounts.google.com                  \
+LAYOUT_TRANSLATE_OIDC_AUDIENCE=<oauth-client-id>                          \
+LAYOUT_TRANSLATE_OIDC_JWKS_URI=https://www.googleapis.com/oauth2/v3/certs \
+LAYOUT_TRANSLATE_OIDC_EMAIL_DOMAINS=example.co.jp                         \
+LAYOUT_TRANSLATE_DAILY_TOKEN_LIMIT=200000                                 \
+LAYOUT_TRANSLATE_BIND_HOST=0.0.0.0                                        \
+npm run backend:mock
+```
+
+- Each caller sends an ID token from that provider. A token from another issuer
+  or audience, an expired one, an unsigned one, or an account outside the listed
+  domains is refused with `401`.
+- Usage is charged to the verified email. A person who spends the daily budget
+  is refused with `429` and keeps the untranslated page.
+- `GET /healthz` reports readiness and the active mode.
+- `SIGTERM` finishes the requests in flight, so a deployment that replaces the
+  container does not throw away provider calls it has already paid for.
+- `backend/Dockerfile` builds it for a container platform. The image runs as a
+  non-root user and carries a health check.
+
+The quota lives in the process, so it holds for one instance. Running more than
+one needs shared storage first.
+
 ## Validation
 
 - `npm test`, `npm run typecheck`, and `npm run build` cover the contract and

@@ -70,7 +70,10 @@ backend-owned session, not only in process memory.
 
 Owns server-side translation boundaries:
 
-- request authentication;
+- request authentication, either a shared token for development or a verified
+  OIDC identity for a deployment, chosen explicitly rather than by default;
+- a per-identity daily budget, checked before a provider call and charged from
+  the token counts the provider reports;
 - payload validation and sanitization;
 - optional sensitive-data masking once approved;
 - project glossary and policy application;

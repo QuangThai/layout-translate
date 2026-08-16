@@ -12,8 +12,12 @@ import {
   validateTranslationResults,
 } from "./contract";
 import { createOpenAIProvider, readOpenAIProviderConfig, type TranslationProvider } from "./openai-provider";
+import { createIdentityVerifier, IdentityError, readIdentityConfig, type VerifiedIdentity } from "./identity";
+import { createQuotaLedger, readQuotaConfig } from "./quota";
 
 const port = Number(process.env.LAYOUT_TRANSLATE_MOCK_PORT ?? 8787);
+// Loopback by default so a development run is not exposed; a container sets this.
+const host = process.env.LAYOUT_TRANSLATE_BIND_HOST ?? "127.0.0.1";
 const authToken = process.env.LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN;
 const allowedPageOrigins = parseAllowedOrigins(process.env.LAYOUT_TRANSLATE_ALLOWED_ORIGINS);
 const allowedClientOrigins = parseAllowedOrigins(process.env.LAYOUT_TRANSLATE_ALLOWED_CLIENT_ORIGINS);
@@ -25,6 +29,16 @@ const allowTestFailureMode = process.env.LAYOUT_TRANSLATE_ALLOW_TEST_FAILURE_MOD
 const rateLimit = Number(process.env.LAYOUT_TRANSLATE_RATE_LIMIT ?? 60);
 const limiter = createRateLimiter(Number.isFinite(rateLimit) && rateLimit > 0 ? rateLimit : 60);
 const translationOverridesPath = process.env.LAYOUT_TRANSLATE_MOCK_TRANSLATION_OVERRIDES;
+
+// Who the caller is has to be a deliberate choice, not a default. A shared
+// token cannot attribute a quota, trace an abuse, or revoke one person, so
+// running that way in production must be something someone typed.
+const authMode = process.env.LAYOUT_TRANSLATE_AUTH_MODE ?? "shared-token";
+if (authMode !== "shared-token" && authMode !== "identity") {
+  throw new Error("LAYOUT_TRANSLATE_AUTH_MODE must be shared-token or identity");
+}
+const verifyIdentity = authMode === "identity" ? createIdentityVerifier(readIdentityConfig()) : null;
+const quota = createQuotaLedger(readQuotaConfig());
 
 function loadTranslationOverrides(path: string | undefined): Record<string, MockTranslationEntry> {
   if (!path) return {};
@@ -75,15 +89,20 @@ const providerMode = process.env.LAYOUT_TRANSLATE_PROVIDER ?? "mock";
 if (providerMode !== "mock" && providerMode !== "openai") {
   throw new Error("LAYOUT_TRANSLATE_PROVIDER must be mock or openai");
 }
+// Set for the duration of a request so provider usage is charged to the account
+// that caused it. The server handles one request at a time per call stack.
+let chargeAccount: string | null = null;
 const provider: TranslationProvider | null = providerMode === "openai"
   ? createOpenAIProvider(readOpenAIProviderConfig(), fetch, (usage) => {
-    // Counts only; a benchmark needs them to estimate cost.
-    console.log(JSON.stringify({ event: "provider_usage", ...usage }));
+    const tokens = usage.promptTokens + usage.completionTokens;
+    if (chargeAccount) quota.record(chargeAccount, tokens);
+    // Counts only, never content: a cost estimate and a quota need nothing else.
+    console.log(JSON.stringify({ event: "provider_usage", ...usage, account: chargeAccount }));
   })
   : null;
 
-if (!authToken) {
-  throw new Error("LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN must be configured before starting the mock backend");
+if (authMode === "shared-token" && !authToken) {
+  throw new Error("LAYOUT_TRANSLATE_MOCK_AUTH_TOKEN must be configured before starting in shared-token mode");
 }
 if (allowedPageOrigins.length === 0) {
   throw new Error("LAYOUT_TRANSLATE_ALLOWED_ORIGINS must contain at least one HTTP(S) origin");
@@ -113,6 +132,7 @@ function writeJson(
   // How many strings this response covered. A count is not content, and without
   // it there is no way to see a page paying for the same text twice.
   itemCount?: number,
+  account?: string,
 ): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -127,6 +147,7 @@ function writeJson(
     path: request.url,
     status,
     ...(itemCount === undefined ? {} : { itemCount }),
+    ...(account === undefined ? {} : { account }),
   }));
 }
 
@@ -197,16 +218,50 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (request.method === "GET" && request.url === "/healthz") {
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    response.end(JSON.stringify({ status: "ok", authMode, provider: provider?.name ?? "mock" }));
+    return;
+  }
+
   if (request.method !== "POST" || request.url !== "/v1/translate") {
     writeJson(request, response, 404, { code: "not_found", error: "Not found" }, requestId);
     return;
   }
 
+  let identity: VerifiedIdentity | null = null;
   try {
-    assertBearerToken(request.headers.authorization, authToken);
+    if (verifyIdentity) {
+      try {
+        identity = await verifyIdentity(request.headers.authorization);
+      } catch (error) {
+        const code = error instanceof IdentityError ? error.code : "unauthorized";
+        throw new ContractError(
+          code === "identity_unavailable" ? "provider_unavailable" : "unauthorized",
+          code === "identity_unavailable" ? 502 : 401,
+          error instanceof Error ? error.message : "Identity could not be verified",
+        );
+      }
+    } else {
+      assertBearerToken(request.headers.authorization, authToken);
+    }
+
     const clientKey = request.socket.remoteAddress ?? "unknown";
     if (!limiter.allow(clientKey)) {
       throw new ContractError("rate_limited", 429, "Translation rate limit exceeded");
+    }
+    // Charged to the person, not the address: several people behind one office
+    // address are not one caller, and one person on two networks is not two.
+    const account = identity?.email ?? identity?.subject ?? clientKey;
+    const allowance = quota.check(account);
+    if (!allowance.allowed) {
+      throw new ContractError(
+        "rate_limited",
+        429,
+        allowance.reason === "daily_token_limit"
+          ? `Daily translation budget of ${allowance.limitTokens} tokens is spent`
+          : "Too many translation requests from this account",
+      );
     }
     const body = await readBody(request);
     const parsed = parseTranslationRequest(body, allowedPageOrigins);
@@ -230,6 +285,7 @@ const server = createServer(async (request, response) => {
     if (activeFailureMode === "delay-success") await sleep(350);
     // Keep the provider payload limited to the contract fields; no source-page
     // metadata or extension-owned fields are forwarded implicitly.
+      chargeAccount = account;
       const providerResults = provider
         ? await provider.translateBatch(parsed.items, parsed.targetLanguage)
         : await mockTranslateBatch(
@@ -254,20 +310,31 @@ const server = createServer(async (request, response) => {
           };
         });
       const translations = validateTranslationResults(parsed.items, overriddenResults);
-    writeJson(request, response, 200, { translations }, requestId, translations.length);
+    writeJson(request, response, 200, { translations }, requestId, translations.length, account);
   } catch (error) {
     sendError(request, response, error, requestId);
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`Layout Translate backend listening on http://127.0.0.1:${port}`);
+// A container is told to stop before it is killed; finishing the requests in
+// flight avoids charging for provider calls whose answers are thrown away.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    console.log(JSON.stringify({ event: "backend_stopping", signal }));
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 10_000).unref();
+  });
+}
+
+server.listen(port, host, () => {
+  console.log(`Layout Translate backend listening on http://${host}:${port}`);
   // Never log page content or credentials; the provider mode and model name are
   // configuration, not translated material.
   console.log(JSON.stringify({
     event: "backend_started",
     provider: provider?.name ?? "mock",
     model: provider?.model ?? null,
+    authMode,
     allowedPageOrigins,
   }));
 });
