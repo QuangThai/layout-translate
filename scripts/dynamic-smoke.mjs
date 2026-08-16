@@ -44,6 +44,14 @@ const TRANSLATIONS = {
   すべて表示しました: { en: "All items shown", vi: "Đã hiển thị tất cả" },
   遅延セクション: { en: "Deferred section", vi: "Phần tải trễ" },
   補足説明: { en: "Additional notes", vi: "Ghi chú bổ sung" },
+  お問い合わせ: { en: "Contact", vi: "Liên hệ" },
+  会社名: { en: "Company name", vi: "Tên công ty" },
+  担当者名: { en: "Contact person", vi: "Người phụ trách" },
+  送信: { en: "Send", vi: "Gửi" },
+  "株式会社◯◯◯◯◯": { en: "Example Co., Ltd.", vi: "Công ty TNHH ABC" },
+  "山田 太郎": { en: "Taro Yamada", vi: "Nguyễn Văn A" },
+  会社のロゴ: { en: "Company logo", vi: "Logo công ty" },
+  送信の確認: { en: "Confirm before sending", vi: "Xác nhận trước khi gửi" },
 };
 
 // Proves the assertions can fail: with translations withheld the page stays
@@ -241,6 +249,31 @@ async function main() {
     await waitForText(".site-header nav a", expectation("記事一覧", "en"), "navigation translated");
     report.phases.initial = { provider: since(initialMark) };
 
+    // 1b. Strings that live in attributes rather than text nodes.
+    const attributeMark = mark();
+    const readAttributes = () => page.evaluate(() => ({
+      companyPlaceholder: document.querySelector("#company")?.getAttribute("placeholder") ?? null,
+      personPlaceholder: document.querySelector("#person")?.getAttribute("placeholder") ?? null,
+      logoAlt: document.querySelector(".form-mark")?.getAttribute("alt") ?? null,
+      buttonTitle: document.querySelector(".contact-form button")?.getAttribute("title") ?? null,
+    }));
+    const attributeDeadline = Date.now() + 20_000;
+    let attributes = await readAttributes();
+    while (Date.now() < attributeDeadline) {
+      attributes = await readAttributes();
+      if (!Object.values(attributes).some((value) => JAPANESE.test(value ?? ""))) break;
+      await sleep(300);
+    }
+    check(
+      "form placeholders are translated",
+      attributes.companyPlaceholder === expectation("株式会社◯◯◯◯◯", "en")
+        && attributes.personPlaceholder === expectation("山田 太郎", "en"),
+      JSON.stringify(attributes),
+    );
+    check("image alt text is translated", attributes.logoAlt === expectation("会社のロゴ", "en"), attributes.logoAlt);
+    check("page-owned title is translated", attributes.buttonTitle === expectation("送信の確認", "en"), attributes.buttonTitle);
+    report.phases.attributes = { provider: since(attributeMark), values: attributes };
+
     // 2. Content appended while scrolling.
     const scrollMark = mark();
     for (let step = 0; step < 14; step += 1) {
@@ -376,7 +409,15 @@ async function main() {
       await sleep(500);
     }
     check("restore returns the Japanese source", restoredJapanese > 0, `japaneseNodes=${restoredJapanese}`);
-    report.phases.restore = { japaneseNodes: restoredJapanese };
+    const restoredAttributes = await readAttributes();
+    check(
+      "restore returns attribute values too",
+      restoredAttributes.companyPlaceholder === "株式会社◯◯◯◯◯"
+        && restoredAttributes.logoAlt === "会社のロゴ"
+        && restoredAttributes.buttonTitle === "送信の確認",
+      JSON.stringify(restoredAttributes),
+    );
+    report.phases.restore = { japaneseNodes: restoredJapanese, attributes: restoredAttributes };
 
     check("no page errors", report.diagnostics.pageErrors.length === 0, JSON.stringify(report.diagnostics.pageErrors));
     report.result = failures.length === 0 ? "passed" : "failed";

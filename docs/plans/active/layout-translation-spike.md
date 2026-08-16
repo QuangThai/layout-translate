@@ -166,6 +166,11 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Translate the visible strings that live in attributes rather than text
+  nodes: `placeholder`, `alt`, `title`, and `aria-label`. Values the page also
+  uses as machine data are left alone, restore returns the original values, and
+  the observer watches only those four attributes so class churn on an animated
+  page is not mistaken for new content.
 - [x] Stop paying for the same string twice. Translations are reused locally
   within a language, cleared on restore and on any backend configuration
   change, and bounded so a long session cannot grow without limit.
@@ -521,6 +526,25 @@ Out of scope:
   and browser-log errors, `npm run calibration:smoke` passed 6 of 6 with
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
+
+- Attribute-text gap, found by measuring the live page rather than guessing: it
+  carried five Japanese strings that a text-node walk cannot see, three form
+  placeholders and two image `alt` values. The contact form therefore had
+  translated labels above inputs still reading 株式会社◯◯◯◯◯ and 山田 太郎. The
+  same measurement found no shadow roots and no iframes on that page, so those
+  remain unproven gaps rather than known ones. After the change the live run
+  reported `0/5` Japanese attributes remaining and the provider cost rose by
+  exactly those five strings, from `147` to `152`.
+- Attribute proof on the fixture: `npm run dynamic:smoke` now checks that
+  placeholders, `alt`, and a page-owned `title` are translated and that restore
+  returns all of them to Japanese. The negative control turns nine assertions
+  red, including the three new ones.
+- Boundaries chosen deliberately for attribute values: anything that looks like
+  a URL, mail or tel target, path, fragment, or template token is skipped, since
+  translating it would break the page rather than help a reader. Values this
+  engine wrote are recognised as its own output rather than re-read as page
+  source, and attribute writes it makes are excluded from the observer the same
+  way its text writes already were.
 
 ## Result
 

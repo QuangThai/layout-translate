@@ -27,7 +27,11 @@ the extension runtime and reads durable extension state.
 Owns page-facing behavior:
 
 - supported DOM text extraction;
-- unsafe/non-translatable node exclusion;
+- visible attribute text (`placeholder`, `alt`, `title`, `aria-label`), which a
+  text-node walk cannot see and which leaves a form half translated when
+  skipped;
+- unsafe/non-translatable node exclusion, including the standard `translate="no"`
+  opt-out and attribute values the page uses as machine data;
 - stable anchor IDs and original-source registry;
 - component classification;
 - geometry/layout snapshots and fit checks;

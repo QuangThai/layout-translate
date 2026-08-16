@@ -153,8 +153,24 @@ const MEASURE = `(() => {
       text: (element.textContent ?? "").trim().slice(0, 90),
       title: element.getAttribute("title"),
     }));
+  // Strings that live in attributes are invisible to a text-node walk, so they
+  // are counted separately or a form full of Japanese placeholders would report
+  // as fully translated.
+  let japaneseAttributes = 0;
+  const japaneseAttributeSamples = [];
+  for (const element of document.querySelectorAll("[placeholder],[alt],[title],[aria-label]")) {
+    for (const name of ["placeholder", "alt", "title", "aria-label"]) {
+      const value = element.getAttribute(name);
+      if (value && japanese.test(value)) {
+        japaneseAttributes += 1;
+        if (japaneseAttributeSamples.length < 6) japaneseAttributeSamples.push(name + ":" + value.slice(0, 24));
+      }
+    }
+  }
   return {
     japaneseNodes,
+    japaneseAttributes,
+    japaneseAttributeSamples,
     textNodes,
     anchors,
     clipped,
@@ -420,6 +436,9 @@ async function main() {
         status: settled.status,
         japaneseNodesRemaining: measured.japaneseNodes,
         japaneseNodesBefore: baseline.japaneseNodes,
+        japaneseAttributesBefore: baseline.japaneseAttributes,
+        japaneseAttributesRemaining: measured.japaneseAttributes,
+        japaneseAttributeSamples: measured.japaneseAttributeSamples,
         anchorShifts: compareAnchors(baseline, measured),
         pageOverflowBefore: baseline.pageOverflow,
         pageOverflow: measured.pageOverflow,
@@ -554,6 +573,7 @@ async function main() {
       ms: data.elapsedMs,
       anchors: data.translatedAnchors,
       japaneseLeft: `${data.japaneseNodesRemaining}/${data.japaneseNodesBefore}`,
+      japaneseAttributesLeft: `${data.japaneseAttributesRemaining}/${data.japaneseAttributesBefore}`,
       pageOverflow: data.pageOverflow,
       newlyClipped: data.newlyClipped.length,
       providerItems: data.provider.items,

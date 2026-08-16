@@ -59,6 +59,20 @@
         <h2 id="deferred-heading">詳細情報</h2>
         <div class="deferred" data-deferred></div>
       </section>
+
+      <!-- Strings that live in attributes rather than text nodes. A form whose
+           labels are translated but whose placeholders are not is half usable. -->
+      <section class="form-panel" aria-labelledby="form-heading">
+        <h2 id="form-heading">お問い合わせ</h2>
+        <form class="contact-form">
+          <label for="company">会社名</label>
+          <input id="company" name="company" type="text" placeholder="株式会社◯◯◯◯◯" autocomplete="off">
+          <label for="person">担当者名</label>
+          <input id="person" name="person" type="text" placeholder="山田 太郎" autocomplete="off">
+          <img class="form-mark" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==" alt="会社のロゴ" width="24" height="24">
+          <button type="button" title="送信の確認">送信</button>
+        </form>
+      </section>
     </main>
 
     <footer class="site-footer">

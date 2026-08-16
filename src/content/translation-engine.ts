@@ -18,8 +18,15 @@ import {
 } from "../shared/text-fit";
 import { mockTranslateBatch } from "../shared/mock-translation";
 import { TranslationMemo } from "../shared/translation-memo";
+import {
+  isTranslatableAttributeValue,
+  TRANSLATABLE_ATTRIBUTES,
+  TRANSLATABLE_ATTRIBUTE_SELECTOR,
+  type TranslatableAttribute,
+} from "../shared/attribute-text";
 
 interface SourceRecord {
+  kind: "text";
   anchorId: string;
   node: Text;
   element: HTMLElement;
@@ -37,6 +44,28 @@ interface SourceRecord {
   slot: number;
 }
 
+/**
+ * A visible string that lives in an attribute rather than a text node. It has no
+ * box of its own, so it needs none of the geometry machinery: rendering it is
+ * just an ownership-tracked attribute write.
+ */
+interface AttributeRecord {
+  kind: "attribute";
+  anchorId: string;
+  element: HTMLElement;
+  attribute: TranslatableAttribute;
+  source: string;
+  component: ReturnType<typeof classifyElement>;
+  translation?: TranslationResult;
+  translatedTarget?: TargetLanguage;
+}
+
+type TranslatableRecord = SourceRecord | AttributeRecord;
+
+function isAttributeRecord(record: TranslatableRecord): record is AttributeRecord {
+  return record.kind === "attribute";
+}
+
 interface OwnedStyleMutation {
   originalValue: string;
   originalPriority: string;
@@ -51,7 +80,7 @@ interface OwnedAttributeMutation {
 
 interface PresentationState {
   styles: Map<string, OwnedStyleMutation>;
-  attributes: Map<"title" | "aria-label", OwnedAttributeMutation>;
+  attributes: Map<TranslatableAttribute, OwnedAttributeMutation>;
 }
 
 export type ContentStatusReporter = (
@@ -73,7 +102,7 @@ export const TRANSLATION_CONCURRENCY = 4;
 
 interface TranslationGroup {
   request: { anchorId: string; source: string; component: ReturnType<typeof classifyElement>; compactMaxChars?: number };
-  records: SourceRecord[];
+  records: TranslatableRecord[];
 }
 
 export interface GroupableRecord {
@@ -216,7 +245,10 @@ export class PageTranslationEngine {
   private readonly sourceByElementSlot = new WeakMap<HTMLElement, Map<number, string>>();
   private readonly presentationStates = new WeakMap<HTMLElement, PresentationState>();
   private readonly ownWriteCounts = new WeakMap<Text, number>();
+  private readonly ownAttributeWrites = new WeakMap<HTMLElement, Map<string, number>>();
   private readonly memo = new TranslationMemo();
+  private readonly attributeRecords = new Map<string, AttributeRecord>();
+  private readonly attributeRecordsByElement = new WeakMap<HTMLElement, Map<string, AttributeRecord>>();
   private nextAnchor = 1;
   private observer?: MutationObserver;
   private scanTimer?: number;
@@ -244,7 +276,11 @@ export class PageTranslationEngine {
     this.observer = new MutationObserver((mutations) => {
       let pageOwned = false;
       for (const mutation of mutations) {
-        const own = mutation.type === "characterData" && this.isOwnWrite(mutation.target);
+        const own = mutation.type === "characterData"
+          ? this.isOwnWrite(mutation.target)
+          : mutation.type === "attributes"
+            ? this.isOwnAttributeWrite(mutation.target as HTMLElement, mutation.attributeName)
+            : false;
         if (!own) pageOwned = true;
       }
       if (!pageOwned) return;
@@ -255,6 +291,10 @@ export class PageTranslationEngine {
       subtree: true,
       childList: true,
       characterData: true,
+      attributes: true,
+      // Only the attributes that carry visible text. Watching every attribute
+      // would make each class change on an animated page look like new content.
+      attributeFilter: [...TRANSLATABLE_ATTRIBUTES],
     });
     this.installFontHooks();
     this.installRouteHooks();
@@ -297,7 +337,7 @@ export class PageTranslationEngine {
   private setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (enabled) {
-      void this.reportStatus("scanning", this.records.size);
+      void this.reportStatus("scanning", this.translatedAnchorCount);
       this.scheduleScan();
     } else {
       this.restoreOriginal();
@@ -337,21 +377,21 @@ export class PageTranslationEngine {
       const detectedSourceLanguage = await this.collectRecords();
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
       if (detectedSourceLanguage !== "ja") {
-        await this.reportStatus("unsupported", this.records.size);
+        await this.reportStatus("unsupported", this.translatedAnchorCount);
         return;
       }
-      const pending = [...this.records.values()].filter(
-        (record) => record.translatedTarget !== requestedLanguage,
-      );
+      this.collectAttributeRecords();
+      const pending: TranslatableRecord[] = [...this.records.values(), ...this.attributeRecords.values()]
+        .filter((record) => record.translatedTarget !== requestedLanguage);
       if (pending.length === 0) {
         if (this.records.size !== recordCountBeforeCollect) {
-          await this.reportStatus("rendered", this.records.size);
+          await this.reportStatus("rendered", this.translatedAnchorCount);
         }
         return;
       }
-      await this.reportStatus("translating", this.records.size);
+      await this.reportStatus("translating", this.translatedAnchorCount);
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
-      const rendered: SourceRecord[] = [];
+      const rendered: TranslatableRecord[] = [];
       this.memo.useLanguage(requestedLanguage);
       const groups = this.groupPendingRecords(pending);
       // Text the page has shown before is rendered from the memo, so a ticker
@@ -362,7 +402,8 @@ export class PageTranslationEngine {
         for (const record of group.records) {
           record.translation = { anchorId: record.anchorId, full: remembered.full, compact: remembered.compact };
           record.translatedTarget = requestedLanguage;
-          this.renderRecord(record);
+          if (isAttributeRecord(record)) this.renderAttributeRecord(record);
+          else this.renderRecord(record);
           rendered.push(record);
         }
         return false;
@@ -377,16 +418,19 @@ export class PageTranslationEngine {
       } catch (error) {
         // Batches now render as they arrive, so a later failure would otherwise
         // leave the page half translated. Revert this pass instead.
-        for (const record of rendered) this.revertRecord(record);
+        for (const record of rendered) {
+          if (isAttributeRecord(record)) this.revertAttributeRecord(record);
+          else this.revertRecord(record);
+        }
         throw error;
       }
       if (!this.isCurrentTranslation(scanVersion, requestedLanguage)) return;
-      await this.reportStatus("rendered", this.records.size);
+      await this.reportStatus("rendered", this.translatedAnchorCount);
     } catch (error) {
       if (this.isCurrentTranslation(scanVersion, requestedLanguage)) {
         await this.reportStatus(
           "error",
-          this.records.size,
+          this.translatedAnchorCount,
           error instanceof Error ? error.message : "Translation failed",
         );
       }
@@ -411,7 +455,70 @@ export class PageTranslationEngine {
     return estimateCharacterBudget(availableTextWidth(element), averageCharacterWidth) ?? undefined;
   }
 
-  private groupPendingRecords(pending: readonly SourceRecord[]): TranslationGroup[] {
+  /**
+   * Collects the visible strings that live in attributes rather than text
+   * nodes. A translated form whose placeholders are still Japanese is only half
+   * translated, and `alt` is the only version of an image a screen reader gets.
+   */
+  private collectAttributeRecords(): void {
+    for (const record of [...this.attributeRecords.values()]) {
+      if (!record.element.isConnected) this.removeAttributeRecord(record);
+    }
+
+    for (const element of this.root.querySelectorAll<HTMLElement>(TRANSLATABLE_ATTRIBUTE_SELECTOR)) {
+      if (!isVisible(element) || isTranslationOptedOut(element)) continue;
+      const owned = this.presentationStates.get(element);
+      for (const attribute of TRANSLATABLE_ATTRIBUTES) {
+        const value = element.getAttribute(attribute);
+        // Values this engine wrote are its own output, not page source.
+        if (owned?.attributes.get(attribute)?.appliedValue === value) continue;
+        const existing = this.attributeRecordsByElement.get(element)?.get(attribute);
+        if (existing && existing.source === value?.trim()) continue;
+        if (existing) this.removeAttributeRecord(existing);
+        if (!value || !isTranslatableAttributeValue(value)) continue;
+
+        const record: AttributeRecord = {
+          kind: "attribute",
+          anchorId: `anchor-${this.nextAnchor++}`,
+          element,
+          attribute,
+          source: value.trim(),
+          component: classifyElement(element),
+        };
+        this.attributeRecords.set(record.anchorId, record);
+        const byAttribute = this.attributeRecordsByElement.get(element) ?? new Map<string, AttributeRecord>();
+        byAttribute.set(attribute, record);
+        this.attributeRecordsByElement.set(element, byAttribute);
+      }
+    }
+  }
+
+  private removeAttributeRecord(record: AttributeRecord): void {
+    this.attributeRecords.delete(record.anchorId);
+    const byAttribute = this.attributeRecordsByElement.get(record.element);
+    byAttribute?.delete(record.attribute);
+    if (byAttribute?.size === 0) this.attributeRecordsByElement.delete(record.element);
+  }
+
+  private renderAttributeRecord(record: AttributeRecord): void {
+    if (!record.translation || !record.element.isConnected) return;
+    this.setOwnedAttribute(record.element, record.attribute, record.translation.full);
+  }
+
+  private revertAttributeRecord(record: AttributeRecord): void {
+    const mutation = this.presentationStates.get(record.element)?.attributes.get(record.attribute);
+    // Only revert a value this engine still owns; the page may have replaced it.
+    if (mutation && record.element.getAttribute(record.attribute) === mutation.appliedValue) {
+      this.markOwnAttributeWrite(record.element, record.attribute);
+      if (mutation.originalValue === null) record.element.removeAttribute(record.attribute);
+      else record.element.setAttribute(record.attribute, mutation.originalValue);
+      this.presentationStates.get(record.element)?.attributes.delete(record.attribute);
+    }
+    record.translation = undefined;
+    record.translatedTarget = undefined;
+  }
+
+  private groupPendingRecords(pending: readonly TranslatableRecord[]): TranslationGroup[] {
     const viewportHeight = window.innerHeight || this.root.documentElement.clientHeight || 0;
     return buildTranslationGroups(
       pending.map((record) => ({
@@ -419,7 +526,7 @@ export class PageTranslationEngine {
         source: record.source,
         component: record.component,
         top: record.element.isConnected ? record.element.getBoundingClientRect().top : null,
-        compactMaxChars: record.compactMaxChars,
+        compactMaxChars: isAttributeRecord(record) ? undefined : record.compactMaxChars,
         record,
       })),
       viewportHeight,
@@ -433,7 +540,7 @@ export class PageTranslationEngine {
     chunks: readonly TranslationGroup[][],
     requestedLanguage: TargetLanguage,
     scanVersion: number,
-    rendered: SourceRecord[],
+    rendered: TranslatableRecord[],
   ): Promise<void> {
     await runChunksWithConcurrency(chunks, TRANSLATION_CONCURRENCY, async (current) => {
       const results = await this.translateBatch(
@@ -465,7 +572,8 @@ export class PageTranslationEngine {
         for (const record of group.records) {
           record.translation = { anchorId: record.anchorId, full: result.full, compact: result.compact };
           record.translatedTarget = requestedLanguage;
-          this.renderRecord(record);
+          if (isAttributeRecord(record)) this.renderAttributeRecord(record);
+          else this.renderRecord(record);
           rendered.push(record);
         }
       }
@@ -554,6 +662,7 @@ export class PageTranslationEngine {
 
       const component = classifyElement(element);
       const record: SourceRecord = {
+        kind: "text",
         anchorId: `anchor-${this.nextAnchor++}`,
         node,
         element,
@@ -737,6 +846,26 @@ export class PageTranslationEngine {
     node.data = value;
   }
 
+  private get translatedAnchorCount(): number {
+    return this.records.size + this.attributeRecords.size;
+  }
+
+  private markOwnAttributeWrite(element: HTMLElement, attribute: string): void {
+    const pending = this.ownAttributeWrites.get(element) ?? new Map<string, number>();
+    pending.set(attribute, (pending.get(attribute) ?? 0) + 1);
+    this.ownAttributeWrites.set(element, pending);
+  }
+
+  private isOwnAttributeWrite(element: HTMLElement, attribute: string | null): boolean {
+    if (!attribute) return false;
+    const pending = this.ownAttributeWrites.get(element);
+    const count = pending?.get(attribute);
+    if (!pending || !count) return false;
+    if (count === 1) pending.delete(attribute);
+    else pending.set(attribute, count - 1);
+    return true;
+  }
+
   private isOwnWrite(target: Node): boolean {
     const pending = this.ownWriteCounts.get(target as Text);
     if (!pending) return false;
@@ -790,7 +919,7 @@ export class PageTranslationEngine {
 
   private setOwnedAttribute(
     element: HTMLElement,
-    attribute: "title" | "aria-label",
+    attribute: TranslatableAttribute,
     value: string,
   ): void {
     const state = this.getPresentationState(element);
@@ -802,6 +931,7 @@ export class PageTranslationEngine {
       if (originalValue === value) return;
       state.attributes.set(attribute, { originalValue, appliedValue: value });
     }
+    this.markOwnAttributeWrite(element, attribute);
     element.setAttribute(attribute, value);
   }
 
@@ -819,6 +949,7 @@ export class PageTranslationEngine {
 
     for (const [attribute, mutation] of state.attributes) {
       if (record.element.getAttribute(attribute) !== mutation.appliedValue) continue;
+      this.markOwnAttributeWrite(record.element, attribute);
       if (mutation.originalValue === null) record.element.removeAttribute(attribute);
       else record.element.setAttribute(attribute, mutation.originalValue);
     }
@@ -835,6 +966,7 @@ export class PageTranslationEngine {
     // starts from the backend rather than from what this session happened to
     // have reused locally.
     this.memo.clear();
+    for (const record of this.attributeRecords.values()) this.revertAttributeRecord(record);
     for (const record of this.records.values()) {
       if (record.node.isConnected) this.writeOwnedText(record.node, `${record.prefix}${record.source}${record.suffix}`);
       this.restorePresentation(record);
@@ -842,7 +974,7 @@ export class PageTranslationEngine {
       record.translation = undefined;
       record.fallback = undefined;
     }
-    void this.reportStatus("restored", this.records.size);
+    void this.reportStatus("restored", this.translatedAnchorCount);
   }
 
   private installRouteHooks(): void {
