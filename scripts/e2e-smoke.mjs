@@ -352,6 +352,7 @@ async function main() {
         `--user-data-dir=${profilePath}`,
         `--disable-extensions-except=${extensionRoot}`,
         `--load-extension=${extensionRoot}`,
+        "--disable-features=DisableLoadExtensionCommandLineSwitch",
         ...(process.env.LAYOUT_TRANSLATE_HEADFUL === "1" ? [] : ["--headless=new"]),
         "--no-first-run",
         "--no-default-browser-check",

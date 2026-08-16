@@ -441,6 +441,7 @@ async function main() {
       args: [
         `--disable-extensions-except=${runtimeExtensionRoot}`,
         `--load-extension=${runtimeExtensionRoot}`,
+        "--disable-features=DisableLoadExtensionCommandLineSwitch",
         "--no-first-run",
         "--no-default-browser-check",
         ...(process.env.CI ? ["--no-sandbox", "--disable-dev-shm-usage"] : []),

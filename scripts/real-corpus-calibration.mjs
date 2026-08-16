@@ -395,7 +395,16 @@ async function runBrowserMode({ mode, corpusRoot, manifest, preflight }) {
       `--remote-debugging-port=${cdpPort}`,
       "--remote-allow-origins=*",
       `--user-data-dir=${profilePath}`,
-      ...(translationEnabled ? [`--disable-extensions-except=${extensionRoot}`, `--load-extension=${extensionRoot}`] : []),
+      ...(translationEnabled
+        ? [
+          `--disable-extensions-except=${extensionRoot}`,
+          `--load-extension=${extensionRoot}`,
+          // Recent stable Chrome disables --load-extension unless this feature
+          // is turned off; Chrome for Testing does not, which is why an
+          // unpacked extension loaded locally and not in CI.
+          "--disable-features=DisableLoadExtensionCommandLineSwitch",
+        ]
+        : []),
       ...(process.env.LAYOUT_TRANSLATE_HEADFUL === "1" ? [] : ["--headless=new"]),
       "--no-first-run",
       "--no-default-browser-check",
