@@ -63,14 +63,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # An extension cannot be loaded into headless Chrome, so these run headful
-      # under a virtual display, which is how a browser extension is normally
-      # exercised in CI.
-      - name: Prepare the browser and a display for it
+      # Stable Chrome now ignores --load-extension without a word in its log, so
+      # the proofs use the Chromium build Playwright manages, which still loads
+      # an unpacked extension. They also run headful under a virtual display,
+      # which is how a browser extension is normally exercised.
+      - name: Prepare a browser that can load an unpacked extension
         run: |
           sudo apt-get update
           sudo apt-get install -y xvfb
-          echo "LAYOUT_TRANSLATE_CHROME=$(which google-chrome || which chromium-browser)" >> "$GITHUB_ENV"
+          node node_modules/playwright-core/cli.js install --with-deps chromium
+          node -e "console.log('LAYOUT_TRANSLATE_CHROME=' + require('playwright-core').chromium.executablePath())" >> "$GITHUB_ENV"
           echo "LAYOUT_TRANSLATE_HEADFUL=1" >> "$GITHUB_ENV"
 
       - name: Build extension and fixtures
