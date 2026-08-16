@@ -14,7 +14,13 @@ function assert(condition, message) {
 function loadCases() {
   assert(existsSync(casesPath), `benchmark cases are missing at ${casesPath}`);
   const document = JSON.parse(readFileSync(casesPath, "utf8"));
-  assert(document.schema === "layout-translate/translation-benchmark-cases/v1", "unsupported benchmark case schema");
+  // v2 added a per-case compact budget, so a reviewer can see and argue with the
+  // number the provider benchmark scores against instead of it living in a script.
+  assert(
+    ["layout-translate/translation-benchmark-cases/v1", "layout-translate/translation-benchmark-cases/v2"]
+      .includes(document.schema),
+    "unsupported benchmark case schema",
+  );
   assert(document.status === "synthetic-draft", "only the synthetic draft may run offline");
   assert(Array.isArray(document.cases) && document.cases.length > 0, "benchmark cases must be non-empty");
   const ids = new Set();

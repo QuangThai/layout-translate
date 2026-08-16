@@ -67,6 +67,46 @@ Tradeoffs:
 - Real model selection remains blocked until provider access, corpus authority,
   and review ownership are available.
 
+## Provider Run, Implemented 2026-08-16
+
+`npm run benchmark:translation:provider` now runs the case set against candidate
+models through the backend, so provider credentials stay in the backend process
+and never reach the benchmark script or the extension. Models come from
+`LAYOUT_TRANSLATE_BENCHMARK_MODELS`; there is still no repository default.
+
+It scores what holds whatever wording a model chooses, because item 2 of the
+alternatives above rejects scoring on reference matching: remaining Japanese, a
+compact longer than its full form, a compact over the budget the case declares,
+a lost interpolation token, and a lost number or date. Reference agreement,
+latency, and token counts are reported beside those, not scored on.
+
+A compact budget now lives on each case rather than in the runner, so a reviewer
+can see and argue with the number the models are judged against.
+
+The first run measured this, on 12 cases in both languages:
+
+| Model | Objective failures | Reference agreement | Total latency | Completion tokens |
+| --- | --- | --- | --- | --- |
+| `gpt-4.1` | 0 | 11 of 24 | 3.3s | 501 |
+| `gpt-4.1-mini` | 1 | 12 of 24 | 6.0s | 500 |
+| `gpt-5-mini` | 0 | 12 of 24 | 53.2s | 6261 |
+
+The single failure was `gpt-4.1-mini` returning a Vietnamese compact longer than
+its own full form, which the engine tolerates by using the full text.
+
+Two things this run demonstrated about the method rather than the models. A
+first version penalised every model for shortening a critical string's compact
+variant, which the engine never displays, so it measured something no reader
+ever sees. And reference disagreement turned out to be dominated by reference
+quality: the `paragraph-long` reference was decorative fixture copy rather than
+a translation of its source, so every model was scored against text the source
+never said. It has been corrected and the reason recorded in the dataset.
+
+No model is selected by this record. Selection still needs the human semantic
+review required above, and that review should start from the recorded outputs
+where models disagree with a reference, since most of those disagreements are
+defensible translations rather than errors.
+
 ## Follow-Up
 
 - Add approved real-corpus cases only after sanitization and product review.

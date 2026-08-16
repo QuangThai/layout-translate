@@ -1,5 +1,5 @@
 {
-  "schema": "layout-translate/translation-benchmark-cases/v1",
+  "schema": "layout-translate/translation-benchmark-cases/v2",
   "status": "synthetic-draft",
   "purpose": "Compare Japanese-to-English/Vietnamese model outputs for semantic and layout-aware translation.",
   "referencePolicy": "References are evaluator prompts, not automatic truth. Human review is required before using quality scores for model selection.",
@@ -9,42 +9,83 @@
       "source": "会社情報",
       "component": "navigation",
       "semanticCritical": false,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Company", "vi": "Thông tin công ty" }
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 18
+      },
+      "reference": {
+        "en": "Company",
+        "vi": "Thông tin công ty"
+      }
     },
     {
       "id": "nav-contact",
       "source": "お問い合わせはこちら",
       "component": "navigation",
       "semanticCritical": false,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Contact us", "vi": "Liên hệ với chúng tôi" },
-      "compactReference": { "en": "Contact", "vi": "Liên hệ" }
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 18
+      },
+      "reference": {
+        "en": "Contact us",
+        "vi": "Liên hệ với chúng tôi"
+      },
+      "compactReference": {
+        "en": "Contact",
+        "vi": "Liên hệ"
+      }
     },
     {
       "id": "nav-terms",
       "source": "利用規約",
       "component": "navigation",
       "semanticCritical": true,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Terms of Use", "vi": "Điều khoản sử dụng" }
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 20
+      },
+      "reference": {
+        "en": "Terms of Use",
+        "vi": "Điều khoản sử dụng"
+      }
     },
     {
       "id": "button-save",
       "source": "保存する",
       "component": "button",
       "semanticCritical": false,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Save", "vi": "Lưu" }
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 10
+      },
+      "reference": {
+        "en": "Save",
+        "vi": "Lưu"
+      }
     },
     {
       "id": "button-review-send",
       "source": "確認して送信",
       "component": "button",
       "semanticCritical": true,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Review and send", "vi": "Xem lại và gửi" },
-      "compactReference": { "en": "Send", "vi": "Gửi" },
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 18
+      },
+      "reference": {
+        "en": "Review and send",
+        "vi": "Xem lại và gửi"
+      },
+      "compactReference": {
+        "en": "Send",
+        "vi": "Gửi"
+      },
       "reviewNote": "The full value must preserve both the review and send actions; compact output must not be displayed without full-text access."
     },
     {
@@ -52,43 +93,73 @@
       "source": "担当者",
       "component": "table",
       "semanticCritical": false,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Owner", "vi": "Người phụ trách" },
-      "compactReference": { "en": "Owner", "vi": "Phụ trách" }
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 16
+      },
+      "reference": {
+        "en": "Owner",
+        "vi": "Người phụ trách"
+      },
+      "compactReference": {
+        "en": "Owner",
+        "vi": "Phụ trách"
+      }
     },
     {
       "id": "table-status",
       "source": "進捗状況",
       "component": "table",
       "semanticCritical": false,
-      "constraints": { "preferCompact": true, "allowWrap": false },
-      "reference": { "en": "Status", "vi": "Tiến độ" }
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 14
+      },
+      "reference": {
+        "en": "Status",
+        "vi": "Tiến độ"
+      }
     },
     {
       "id": "heading-description",
       "source": "説明文",
       "component": "heading",
       "semanticCritical": false,
-      "constraints": { "preferCompact": false, "allowWrap": true },
-      "reference": { "en": "Description", "vi": "Mô tả" }
+      "constraints": {
+        "preferCompact": false,
+        "allowWrap": true
+      },
+      "reference": {
+        "en": "Description",
+        "vi": "Mô tả"
+      }
     },
     {
       "id": "paragraph-long",
       "source": "長い説明テキストです。",
       "component": "paragraph",
       "semanticCritical": false,
-      "constraints": { "preferCompact": false, "allowWrap": true },
+      "constraints": {
+        "preferCompact": false,
+        "allowWrap": true
+      },
       "reference": {
-        "en": "This is a longer description that should remain readable while the surrounding card stays coherent.",
-        "vi": "Đây là phần mô tả dài cần giữ khả năng đọc trong khi bố cục thẻ vẫn nhất quán."
-      }
+        "en": "This is a long explanatory text.",
+        "vi": "Đây là văn bản mô tả dài."
+      },
+      "reviewNote": "Reference corrected on 2026-08-16: the previous value was decorative fixture copy, not a translation of the source, so every model was scored against text the source never said."
     },
     {
       "id": "critical-delete",
       "source": "この項目を削除すると元に戻せません。",
       "component": "unknown",
       "semanticCritical": true,
-      "constraints": { "preferCompact": false, "allowWrap": true },
+      "constraints": {
+        "preferCompact": false,
+        "allowWrap": true
+      },
       "reference": {
         "en": "This item cannot be restored after deletion.",
         "vi": "Không thể khôi phục mục này sau khi xóa."
@@ -100,7 +171,10 @@
       "source": "{{count}}件の通知",
       "component": "paragraph",
       "semanticCritical": false,
-      "constraints": { "preferCompact": false, "allowWrap": true },
+      "constraints": {
+        "preferCompact": false,
+        "allowWrap": true
+      },
       "reference": {
         "en": "{{count}} notifications",
         "vi": "{{count}} thông báo"
@@ -112,7 +186,11 @@
       "source": "更新日: 2026/08/12",
       "component": "table",
       "semanticCritical": false,
-      "constraints": { "preferCompact": true, "allowWrap": false },
+      "constraints": {
+        "preferCompact": true,
+        "allowWrap": false,
+        "compactMaxChars": 22
+      },
       "reference": {
         "en": "Updated: 2026/08/12",
         "vi": "Cập nhật: 2026/08/12"

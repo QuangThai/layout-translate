@@ -76,7 +76,10 @@ if (providerMode !== "mock" && providerMode !== "openai") {
   throw new Error("LAYOUT_TRANSLATE_PROVIDER must be mock or openai");
 }
 const provider: TranslationProvider | null = providerMode === "openai"
-  ? createOpenAIProvider(readOpenAIProviderConfig())
+  ? createOpenAIProvider(readOpenAIProviderConfig(), fetch, (usage) => {
+    // Counts only; a benchmark needs them to estimate cost.
+    console.log(JSON.stringify({ event: "provider_usage", ...usage }));
+  })
   : null;
 
 if (!authToken) {

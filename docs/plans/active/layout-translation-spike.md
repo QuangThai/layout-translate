@@ -144,6 +144,12 @@ Out of scope:
   guessing which text is a proper noun.
 - [x] Send a measured character budget for regions that must keep their box, so
   the provider can shorten to the space that exists.
+- [x] Measure candidate models instead of choosing one by speed. The provider
+  benchmark now runs the case set through the backend, scores what holds for any
+  wording, and reports reference agreement, latency, and token counts beside it.
+  Evidence is recorded in
+  [`docs/decisions/0003-translation-model-benchmark-contract.md`](../../decisions/0003-translation-model-benchmark-contract.md);
+  no model is selected, because that still needs human semantic review.
 - [x] Gate the browser proofs in CI. The fixture journey, the dynamic-page
   suite, and the calibration gate were local-only, so a regression in the
   strongest evidence this repository has was caught only by someone remembering
@@ -580,6 +586,20 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Model benchmark result: all three candidates passed every objective check
+  except one, `gpt-4.1-mini` returning a Vietnamese compact longer than its own
+  full form. `gpt-4.1` answered in `3.3s` and `gpt-4.1-mini` in `6.0s` for both
+  languages, while `gpt-5-mini` took `53.2s` and spent `6261` completion tokens
+  against roughly `500` for the other two, without a measurable gain on these
+  checks. The current runtime choice of `gpt-4.1-mini` was made on speed alone
+  and now has evidence behind it, though the selection itself remains a human
+  decision.
+- The benchmark corrected two of its own measurements before it measured
+  anything about the models. It first penalised a short compact for
+  semantic-critical cases, which the engine never displays, and it scored the
+  long-paragraph case against decorative fixture copy that was not a translation
+  of its source, so every model appeared to fail it. Both are recorded where
+  they happened: the check is gone and the reference is fixed.
 - Getting those proofs to run in CI took six attempts and each one was a guess
   until the runner was made to report what the browser actually had. It then
   answered in one line: Chrome started, opened the fixture, listed no extension

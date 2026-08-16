@@ -181,6 +181,20 @@ screenshots to `.output/live-provider-report.json` and `.output/live-provider/`.
 It is developer verification, not a gate: it asserts the journey completes and
 reports what happened, rather than enforcing a tolerance.
 
+To compare candidate models on evidence rather than on speed:
+
+```bash
+LAYOUT_TRANSLATE_BENCHMARK_MODELS=gpt-4.1-mini,gpt-4.1 npm run benchmark:translation:provider
+```
+
+It runs the case set through the backend, so the credential stays there. It
+scores what holds whatever wording a model chooses — remaining Japanese, a
+compact longer than its full form or over the budget the case declares, a lost
+interpolation token, a lost number — and reports reference agreement, latency,
+and token counts beside those rather than scoring on them. It selects no model;
+[`docs/decisions/0003-translation-model-benchmark-contract.md`](docs/decisions/0003-translation-model-benchmark-contract.md)
+requires human semantic review for that, and carries the first run's results.
+
 There is no default model: provider mode refuses to start without an explicit
 model ID, and incomplete configuration is a startup error rather than a silent
 fall back to mock output. Deterministic fixture overrides are ignored in this

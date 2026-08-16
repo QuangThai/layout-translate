@@ -175,9 +175,20 @@ function toTranslationResults(parsed: unknown): TranslationResult[] {
   });
 }
 
+export interface ProviderUsage {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  items: number;
+}
+
 export function createOpenAIProvider(
   config: OpenAIProviderConfig,
   fetchImpl: typeof fetch = fetch,
+  // Token counts are the only input a cost estimate needs, and a count is not
+  // content. Reported rather than returned, so the translation contract is
+  // unchanged.
+  onUsage?: (usage: ProviderUsage) => void,
 ): TranslationProvider {
   return {
     name: "openai",
@@ -223,6 +234,13 @@ export function createOpenAIProvider(
             `Provider request failed with status ${response.status}${typeof code === "string" ? ` (${code})` : ""}`,
           );
         }
+        const usage = (body as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+        onUsage?.({
+          model: config.model,
+          promptTokens: usage?.prompt_tokens ?? 0,
+          completionTokens: usage?.completion_tokens ?? 0,
+          items: items.length,
+        });
         return toTranslationResults(parseCompletion(body));
       } catch (error) {
         if (error instanceof ContractError) throw error;
