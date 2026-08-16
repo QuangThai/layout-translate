@@ -251,10 +251,16 @@ async function attachTarget(cdp, targetId) {
 }
 
 async function findExtensionPopup(cdp) {
-  const targets = await cdp.call("Target.getTargets");
-  const extensionIds = targets.targetInfos
-    .filter((target) => target.type === "service_worker" && target.url.endsWith("/background.js"))
-    .map((target) => target.url.slice("chrome-extension://".length).split("/")[0]);
+  // The service worker registers a moment after the browser starts, and how long
+  // that takes depends on the machine. Asking once worked on a developer's
+  // laptop and failed on a CI runner, which is the same bug either way.
+  const extensionIds = await waitFor(async () => {
+    const targets = await cdp.call("Target.getTargets");
+    const found = targets.targetInfos
+      .filter((target) => target.type === "service_worker" && target.url.endsWith("/background.js"))
+      .map((target) => target.url.slice("chrome-extension://".length).split("/")[0]);
+    return found.length > 0 ? found : false;
+  }, "the extension service worker to register", 30_000);
 
   for (const extensionId of extensionIds) {
     const target = await cdp.call("Target.createTarget", {
@@ -350,6 +356,7 @@ async function main() {
         "--no-first-run",
         "--no-default-browser-check",
         "--window-size=1280,900",
+        ...(process.env.CI ? ["--no-sandbox", "--disable-dev-shm-usage"] : []),
       ],
       { stdio: "ignore", windowsHide: true },
     );

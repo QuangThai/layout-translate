@@ -483,6 +483,7 @@ async function main() {
         `--disable-extensions-except=${extensionRoot}`,
         `--load-extension=${extensionRoot}`,
         "--headless=new",
+        ...(process.env.CI ? ["--no-sandbox", "--disable-dev-shm-usage"] : []),
         "--no-first-run",
         "--no-default-browser-check",
         "--window-size=1280,900",

@@ -443,6 +443,7 @@ async function main() {
         `--load-extension=${runtimeExtensionRoot}`,
         "--no-first-run",
         "--no-default-browser-check",
+        ...(process.env.CI ? ["--no-sandbox", "--disable-dev-shm-usage"] : []),
       ],
     });
 
