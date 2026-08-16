@@ -273,7 +273,7 @@ async function findExtensionPopup(cdp) {
     // browser never started a worker at all.
     const targets = await cdp.call("Target.getTargets").catch(() => ({ targetInfos: [] }));
     const seen = targets.targetInfos.map((target) => target.type + ":" + target.url.slice(0, 60));
-    throw new Error(error.message + "; targets seen: " + JSON.stringify(seen) + "; browser said: " + JSON.stringify(browserStderr.slice(-6)));
+    throw new Error(error.message + "; targets seen: " + JSON.stringify(seen) + "; browser said: " + JSON.stringify(browserStderr.slice(-12)));
   }
 
   for (const extensionId of extensionIds) {
@@ -1137,7 +1137,7 @@ main().catch((error) => {
   console.error(JSON.stringify({
     result: "failed",
     errorCode: classifyFailure(error),
-    reason: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400),
+    reason: error instanceof Error ? error.message.slice(0, 2000) : String(error).slice(0, 2000),
   }));
   process.exitCode = 1;
 });
