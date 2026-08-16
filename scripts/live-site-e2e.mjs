@@ -431,7 +431,7 @@ async function main() {
 
     context = await chromium.launchPersistentContext(profileDir, {
       executablePath: chromePath,
-      headless: true,
+      headless: process.env.LAYOUT_TRANSLATE_HEADFUL !== "1",
       viewport: { width: 1440, height: 900 },
       // Headless Chrome advertises itself as HeadlessChrome, and some sites
       // answer that with a block page instead of their content. This is the

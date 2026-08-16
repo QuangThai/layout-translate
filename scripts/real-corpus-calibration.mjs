@@ -396,7 +396,7 @@ async function runBrowserMode({ mode, corpusRoot, manifest, preflight }) {
       "--remote-allow-origins=*",
       `--user-data-dir=${profilePath}`,
       ...(translationEnabled ? [`--disable-extensions-except=${extensionRoot}`, `--load-extension=${extensionRoot}`] : []),
-      "--headless=new",
+      ...(process.env.LAYOUT_TRANSLATE_HEADFUL === "1" ? [] : ["--headless=new"]),
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-background-networking",

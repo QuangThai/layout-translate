@@ -202,7 +202,7 @@ async function main() {
 
     context = await chromium.launchPersistentContext(profileDir, {
       executablePath: findChrome(),
-      headless: true,
+      headless: process.env.LAYOUT_TRANSLATE_HEADFUL !== "1",
       viewport: { width: 1280, height: 900 },
       args: [
         `--disable-extensions-except=${extensionRoot}`,

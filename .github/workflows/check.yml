@@ -63,8 +63,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Locate the browser
-        run: echo "LAYOUT_TRANSLATE_CHROME=$(which google-chrome || which chromium-browser)" >> "$GITHUB_ENV"
+      # An extension cannot be loaded into headless Chrome, so these run headful
+      # under a virtual display, which is how a browser extension is normally
+      # exercised in CI.
+      - name: Prepare the browser and a display for it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          echo "LAYOUT_TRANSLATE_CHROME=$(which google-chrome || which chromium-browser)" >> "$GITHUB_ENV"
+          echo "LAYOUT_TRANSLATE_HEADFUL=1" >> "$GITHUB_ENV"
 
       - name: Build extension and fixtures
         run: |
@@ -72,18 +79,18 @@ jobs:
           npm run framework:build
 
       - name: Fixture browser proof
-        run: node scripts/e2e-smoke.mjs
+        run: xvfb-run -a node scripts/e2e-smoke.mjs
 
       - name: Dynamic page proof
-        run: node scripts/dynamic-smoke.mjs
+        run: xvfb-run -a node scripts/dynamic-smoke.mjs
 
       # Withholding the translations must turn those assertions red. The runner
       # fails this step if they stay green, since then they prove nothing.
       - name: Dynamic page proof cannot pass vacuously
-        run: node scripts/dynamic-smoke.mjs --negative-control
+        run: xvfb-run -a node scripts/dynamic-smoke.mjs --negative-control
 
       - name: Layout calibration gate
-        run: node scripts/calibration-smoke.mjs
+        run: xvfb-run -a node scripts/calibration-smoke.mjs
 
       - name: Upload reports
         if: always()
