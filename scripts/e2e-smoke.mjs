@@ -216,7 +216,13 @@ async function connectCdp(port) {
     typeof WebSocket === "function",
     "Node 22+ with a built-in WebSocket implementation is required for the smoke runner",
   );
-  const version = await waitFor(() => getJson(`http://127.0.0.1:${port}/json/version`), "Chrome CDP");
+  // A cold browser start on a shared CI runner takes longer than a warm one on
+  // a developer machine, and 15 seconds was tuned for the latter.
+  const version = await waitFor(
+    () => getJson(`http://127.0.0.1:${port}/json/version`),
+    "Chrome CDP",
+    process.env.CI ? 90_000 : 15_000,
+  );
   const webSocket = new WebSocket(version.webSocketDebuggerUrl);
   await new Promise((resolvePromise, reject) => {
     webSocket.addEventListener("open", resolvePromise, { once: true });
