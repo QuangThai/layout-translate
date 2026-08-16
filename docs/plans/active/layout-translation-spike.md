@@ -169,6 +169,12 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Retry a batch that failed for a transient reason, and report how often it
+  happened. Until now one passing 429 or 502 discarded the whole pass, and on a
+  page translated in dozens of batches at least one such failure is likely. A
+  refusal is never retried, since that would only re-send content the boundary
+  already rejected. A timeout gets one retry rather than two, because it has
+  already cost the reader the full wait once.
 - [x] Measure what `SPEC.md` section 10 actually asks Phase 0 to measure, on
   real pages: anchor shift, sibling displacement, overflow, line changes,
   truncation, and critical breaks, reported per component policy in the shape
@@ -556,6 +562,14 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Retry proof: the mock backend gained a mode that refuses the first request of
+  each batch and answers the retry, which is the shape of a transient provider
+  problem. The browser proof drives it and confirms the page translates anyway,
+  the status never becomes an error, and the retry is reported rather than
+  silently absorbed. Adding retry also changed how long a genuine timeout takes
+  to surface, so the failure-matrix wait was widened to match rather than left
+  to fail intermittently. Live runs since then reported `0` retries, so the path
+  is exercised by the fixture rather than by luck.
 - SPEC-shaped measurement across three real Japanese pages, in English, with
   `gpt-4.1-mini`. The number that answers the product promise is whether an
   anchor kept its own box, not whether it stayed at the same position: anything

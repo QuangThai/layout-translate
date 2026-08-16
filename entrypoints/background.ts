@@ -10,7 +10,8 @@ import {
   type RuntimeResponse,
   type TranslationAudit,
 } from "../src/shared/contracts";
-import { translateViaBackend } from "../src/shared/backend-client";
+import { BackendRequestError, translateViaBackend } from "../src/shared/backend-client";
+import { isRetryableFailure, maxAttemptsFor, MAX_TRANSLATION_ATTEMPTS, retryDelayMs } from "../src/shared/retry";
 import { aggregateFrameStates, type FrameReport } from "../src/shared/frame-state";
 
 const STORAGE_KEY = "layout-translate:state";
@@ -19,6 +20,10 @@ const STORAGE_KEY = "layout-translate:state";
 // each frame runs its own engine and only knows about itself. This lives in
 // memory: the service worker can be suspended, and frames simply report again.
 const frameReports = new Map<number, Map<number, FrameReport>>();
+
+// How often a batch had to be sent again, which SPEC section 10 asks Phase 0 to
+// measure. Reset per navigation along with the frame reports.
+let retryCount = 0;
 async function readBackendConfig(): Promise<BackendConfig> {
   const stored = await browser.storage.local.get("layout-translate:backend");
   const configured = stored["layout-translate:backend"] as Partial<BackendConfig> | undefined;
@@ -125,29 +130,37 @@ async function handleMessage(
           audit.byPolicy[mode] = totals;
         }
       }
-      return { type: "AUDIT", audit };
+      return { type: "AUDIT", audit: { ...audit, retries: retryCount } };
     }
     case "TRANSLATE_BATCH": {
-      try {
-        const config = await readBackendConfig();
-        // The frame's own URL, not the tab's. A cross-origin frame would
-        // otherwise have its content attributed to the top-level origin and
-        // pass an allowlist check that was never granted for it.
-        const frameUrl = sender.url ?? sender.tab?.url;
-        const translations = await translateViaBackend(
-          config,
-          frameUrl ? new URL(frameUrl).origin : "",
-          message.requests,
-          message.targetLanguage,
-        );
-        return { type: "TRANSLATION_RESULT", translations };
-      } catch (error) {
-        return {
-          type: "UNAVAILABLE",
-          state,
-          reason: error instanceof Error ? error.message : "Translation backend request failed",
-        };
+      const config = await readBackendConfig();
+      // The frame's own URL, not the tab's. A cross-origin frame would
+      // otherwise have its content attributed to the top-level origin and
+      // pass an allowlist check that was never granted for it.
+      const frameUrl = sender.url ?? sender.tab?.url;
+      const pageOrigin = frameUrl ? new URL(frameUrl).origin : "";
+
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= MAX_TRANSLATION_ATTEMPTS; attempt += 1) {
+        try {
+          const translations = await translateViaBackend(config, pageOrigin, message.requests, message.targetLanguage);
+          return { type: "TRANSLATION_RESULT", translations };
+        } catch (error) {
+          lastError = error;
+          const code = error instanceof BackendRequestError ? error.code : undefined;
+          // A page is translated in many batches, so one transient failure
+          // would otherwise discard the whole pass. A refusal is not retried:
+          // it would only re-send content the boundary already rejected.
+          if (attempt >= maxAttemptsFor(code) || !isRetryableFailure(code)) break;
+          retryCount += 1;
+          await new Promise((settle) => setTimeout(settle, retryDelayMs(attempt)));
+        }
       }
+      return {
+        type: "UNAVAILABLE",
+        state,
+        reason: lastError instanceof Error ? lastError.message : "Translation backend request failed",
+      };
     }
     case "CONTENT_READY": {
       const delivered = await sendToTab(sender.tab?.id, { type: "SYNC_STATE", state });
@@ -223,7 +236,9 @@ export default defineBackground(() => {
   });
   browser.tabs.onRemoved.addListener((tabId) => frameReports.delete(tabId));
   browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.status === "loading") frameReports.delete(tabId);
+    if (changeInfo.status !== "loading") return;
+    frameReports.delete(tabId);
+    retryCount = 0;
   });
   browser.storage.onChanged.addListener((changes, area) => {
     // Reusing a translation locally is only sound while it is still attributable

@@ -19,6 +19,8 @@ const allowedPageOrigins = parseAllowedOrigins(process.env.LAYOUT_TRANSLATE_ALLO
 const allowedClientOrigins = parseAllowedOrigins(process.env.LAYOUT_TRANSLATE_ALLOWED_CLIENT_ORIGINS);
 const allowExtensionClients = process.env.LAYOUT_TRANSLATE_ALLOW_EXTENSION_CLIENTS === "true";
 let activeFailureMode = process.env.LAYOUT_TRANSLATE_MOCK_FAILURE_MODE ?? "none";
+// Counts requests seen in flaky mode so the first one fails and the retry works.
+let flakyRequests = 0;
 const allowTestFailureMode = process.env.LAYOUT_TRANSLATE_ALLOW_TEST_FAILURE_MODE === "true";
 const rateLimit = Number(process.env.LAYOUT_TRANSLATE_RATE_LIMIT ?? 60);
 const limiter = createRateLimiter(Number.isFinite(rateLimit) && rateLimit > 0 ? rateLimit : 60);
@@ -182,11 +184,12 @@ const server = createServer(async (request, response) => {
     request.setEncoding("utf8");
     for await (const chunk of request) raw += chunk;
     const requestedMode = JSON.parse(raw).mode;
-    if (!["none", "reject-422", "malformed-502", "timeout", "delay-success"].includes(requestedMode)) {
+    if (!["none", "reject-422", "malformed-502", "timeout", "delay-success", "flaky-503"].includes(requestedMode)) {
       writeJson(request, response, 400, { code: "invalid_request", error: "Unsupported test failure mode" }, requestId);
       return;
     }
     activeFailureMode = requestedMode;
+    flakyRequests = 0;
     writeJson(request, response, 204, {}, requestId);
     return;
   }
@@ -210,6 +213,15 @@ const server = createServer(async (request, response) => {
     if (activeFailureMode === "malformed-502") {
       writeJson(request, response, 502, { code: "provider_invalid_response", error: "Synthetic malformed provider response" }, requestId);
       return;
+    }
+    // Fails the first request of each batch and answers the retry, which is the
+    // shape of a transient provider problem.
+    if (activeFailureMode === "flaky-503") {
+      flakyRequests += 1;
+      if (flakyRequests % 2 === 1) {
+        writeJson(request, response, 503, { code: "provider_unavailable", error: "Synthetic transient failure" }, requestId);
+        return;
+      }
     }
     if (activeFailureMode === "timeout") await sleep(15_000);
     if (activeFailureMode === "delay-success") await sleep(350);

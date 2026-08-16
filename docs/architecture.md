@@ -53,6 +53,8 @@ It must not rewrite the site's structural layout by default.
 Owns extension runtime coordination:
 
 - popup/content-script messaging;
+- retrying a batch that failed for a transient reason, with backoff, and never
+  retrying a refusal, since that would re-send content the boundary rejected;
 - folding the per-frame reports of one tab into the single state the popup
   shows, since each frame runs its own engine and knows only about itself;
 - attributing a translation request to the frame's own origin rather than the

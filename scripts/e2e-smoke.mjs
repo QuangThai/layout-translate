@@ -566,7 +566,9 @@ async function main() {
           return state?.status === "error" && typeof state.lastError === "string" ? state : false;
         },
         `${mode} failure status`,
-        mode === "timeout" ? 20_000 : 15_000,
+        // A timeout is now retried once before the reader is told, so the error
+        // takes two request timeouts plus the backoff to surface.
+        mode === "timeout" ? 40_000 : 20_000,
       );
       const modeRequestId = extractRequestId(modeState.lastError);
       if (modeRequestId) backendFailureRequestIds.add(modeRequestId);
@@ -658,6 +660,31 @@ async function main() {
       () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Company'"),
       "normal translation after concurrency proof",
     );
+
+    // A transient provider failure used to discard the whole pass. The mock
+    // refuses the first request of each batch and answers the retry, so this
+    // proves the page recovers on its own rather than needing the reader to
+    // try again.
+    await evaluate(cdp, popup, "document.querySelector('button.restore-button').click()");
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === '会社情報'"),
+      "restore before the transient failure proof",
+    );
+    await fetch(`http://127.0.0.1:${backendPort}/__test/failure-mode`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "flaky-503" }) });
+    await evaluate(cdp, popup, "document.querySelector('button.toggle').click()");
+    await waitFor(
+      () => evaluate(cdp, fixture, "document.querySelector('nav a')?.textContent === 'Company'"),
+      "translation recovers from a transient provider failure",
+    );
+    const transientState = await getExtensionState();
+    assert(transientState?.status !== "error", "a retried batch must not leave the page in an error state");
+    const retriedAudit = await evaluate(
+      cdp,
+      popup,
+      "(async () => { const response = await chrome.runtime.sendMessage({ type: 'GET_AUDIT' }); return response?.audit?.retries ?? 0; })()",
+    );
+    assert(retriedAudit > 0, "the retry must be reported, not silently absorbed");
+    await fetch(`http://127.0.0.1:${backendPort}/__test/failure-mode`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mode: "none" }) });
 
     const englishFocus = await evaluate(
       cdp,
@@ -1037,6 +1064,8 @@ async function main() {
         backendFailureCodeObserved: failedTranslationState.lastError.includes("unauthorized"),
         backendFailureRequestIds: [...backendFailureRequestIds],
         backendFailureMatrixVerified: true,
+        transientFailureRecovered: true,
+        retriesObserved: retriedAudit,
         removedAnchors: stateBeforeRemoval.translatedAnchors - stateAfterRemoval.translatedAnchors,
         pageErrorCount: pageErrors.length,
         consoleErrorCount: consoleErrors.length,

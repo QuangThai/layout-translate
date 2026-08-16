@@ -6,6 +6,14 @@ import type {
 } from "./contracts";
 
 const MAX_TRANSLATION_LENGTH = 4_000;
+
+/** Carries the backend's code so callers can tell a transient failure from a refusal. */
+export class BackendRequestError extends Error {
+  constructor(message: string, readonly code: string) {
+    super(message);
+    this.name = "BackendRequestError";
+  }
+}
 export const REQUEST_TIMEOUT_MS = 10_000;
 
 function assertValidConfig(config: BackendConfig): URL {
@@ -51,7 +59,10 @@ function parseResults(value: unknown, requested: readonly TranslationRequest[]):
 function appendRequestId(error: unknown, requestId: string | null): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (!requestId || message.includes("[request_id:")) return error instanceof Error ? error : new Error(message);
-  const next = new Error(`${message} [request_id:${requestId}]`);
+  const decorated = `${message} [request_id:${requestId}]`;
+  // Keep the code: it is what decides whether another attempt is worth making.
+  if (error instanceof BackendRequestError) return new BackendRequestError(decorated, error.code);
+  const next = new Error(decorated);
   if (error instanceof Error) next.name = error.name;
   return next;
 }
@@ -97,7 +108,7 @@ export async function translateViaBackend(
       const code = typeof body === "object" && body !== null && typeof (body as { code?: unknown }).code === "string"
         ? (body as { code: string }).code
         : "backend_request_failed";
-      throw appendRequestId(new Error(`Translation backend rejected request: ${code}`), requestId);
+      throw appendRequestId(new BackendRequestError(`Translation backend rejected request: ${code}`, code), requestId);
     }
     try {
       return parseResults(body, requests);
@@ -105,7 +116,11 @@ export async function translateViaBackend(
       throw appendRequestId(error, requestId);
     }
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error("Translation backend request timed out");
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new BackendRequestError("Translation backend request timed out", "timeout");
+    }
+    // A fetch that never reached the backend is worth another attempt.
+    if (error instanceof TypeError) throw new BackendRequestError("Translation backend is unreachable", "network_error");
     throw appendRequestId(error, requestId);
   } finally {
     clearTimeout(timeout);

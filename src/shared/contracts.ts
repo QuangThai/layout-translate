@@ -92,6 +92,8 @@ export interface TranslationAudit {
   criticalBreaks: number;
   /** Anchors whose own box overflows after translation. */
   overflows: number;
+  /** Batches that had to be sent again after a transient failure. */
+  retries?: number;
 }
 
 export const BACKEND_CONFIG_KEY = "layout-translate:backend";
