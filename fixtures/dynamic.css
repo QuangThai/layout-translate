@@ -1,0 +1,157 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0 32px 64px;
+  font-family: system-ui, sans-serif;
+  color: #16212e;
+  background: #ffffff;
+  overflow-x: hidden;
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid #dbe2ea;
+}
+
+.site-header nav {
+  display: flex;
+  gap: 18px;
+}
+
+.site-header a {
+  color: #16212e;
+  text-decoration: none;
+}
+
+section {
+  padding: 28px 0;
+  border-bottom: 1px solid #eef2f6;
+}
+
+h2 {
+  font-size: 18px;
+  margin: 0 0 14px;
+}
+
+.motion-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Runs forever and never changes any text. */
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #d5dee8;
+  border-top-color: #2f6fd0;
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+.motion-label {
+  font-weight: 600;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ticker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #eef4ff;
+  font-weight: 600;
+}
+
+.ticker-note {
+  color: #5a6a7d;
+  font-size: 13px;
+}
+
+.recycler {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recycler li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.feed {
+  display: grid;
+  gap: 12px;
+}
+
+.feed-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+}
+
+.feed-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.feed-action {
+  color: #2f6fd0;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.sentinel {
+  height: 1px;
+}
+
+.feed-status {
+  color: #5a6a7d;
+  font-size: 13px;
+}
+
+/* Keeps the feed and deferred sections below the fold so reaching them needs
+   real scrolling. */
+.feed-panel {
+  margin-top: 900px;
+}
+
+.deferred-panel {
+  margin-top: 900px;
+  min-height: 240px;
+}
+
+.deferred-note {
+  font-weight: 600;
+}
+
+.site-footer {
+  padding-top: 20px;
+  color: #5a6a7d;
+  font-size: 13px;
+}

@@ -86,6 +86,15 @@ exit means the audit
 found a real provisional-gate violation; it must not be “fixed” by raising the
 threshold without a documented product decision.
 
+`npm run dynamic:smoke` drives the behaviours a single-screen fixture cannot
+show: content appended while scrolling, a section revealed on intersection, page
+text the site keeps rewriting, recycled list rows, and a continuous animation.
+It runs offline against the mock backend with fixed translations, so it costs
+nothing and repeats deterministically. It also reports what the page's own churn
+costs in provider requests, which is how the local translation reuse is
+measured. Run it with `--negative-control` to withhold the translations and
+confirm its assertions can still fail.
+
 `npm run real-corpus:preflight` validates the approved snapshot contract
 without starting Chrome or making network calls. It intentionally fails while
 `fixtures/real-corpus/manifest.json` is `pending-review` or required snapshot

@@ -162,6 +162,14 @@ deduplicate anchors, and reapply translations idempotently after framework
 re-renders. Route changes and lazy content are normal inputs to the same state
 machine, not separate activation flows.
 
+Translations are reused locally within a target language so a page that rewrites
+its own text does not buy the same string repeatedly. The reuse is bounded, and
+it is dropped when the reader restores the original or when the backend
+configuration changes, so a reused value is always one the configured backend
+produced in the current session. A result whose pass was superseded by page
+mutation is still kept: it was already paid for, and only rendering has to
+respect what is current.
+
 ## Proof boundary
 
 The technical spike must prove behavior through representative fixtures and

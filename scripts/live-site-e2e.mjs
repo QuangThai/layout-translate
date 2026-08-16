@@ -269,6 +269,16 @@ async function main() {
     result: "failed",
   };
 
+  // Every provider call costs money, so churn is measured rather than assumed:
+  // a page that re-translates the same text after a scroll or an animation is
+  // paying twice for it.
+  const provider = { requests: 0, items: 0 };
+  const meterFrom = () => ({ requests: provider.requests, items: provider.items });
+  const meterSince = (mark) => ({
+    requests: provider.requests - mark.requests,
+    items: provider.items - mark.items,
+  });
+
   const chromePath = findChrome();
   const grant = prepareExtension(origin);
   report.grantedByAutomation = grant.pattern;
@@ -307,6 +317,10 @@ async function main() {
           if (event.event === "backend_started") report.backendStartup = event;
           if (event.event === "translation_response" && event.status >= 400) {
             report.diagnostics.backendErrors.push(event.status);
+          }
+          if (event.event === "translation_response" && event.status === 200) {
+            provider.requests += 1;
+            provider.items += event.itemCount ?? 0;
           }
         } catch {
           // Startup banner is not JSON.
@@ -377,6 +391,7 @@ async function main() {
 
     for (const targetLanguage of languages) {
       const previousTexts = await sampleTexts(page);
+      const languageMark = meterFrom();
       const startedAt = Date.now();
       // Clicking the language already selected is a no-op in the popup, so the
       // first pass needs no special case.
@@ -400,6 +415,7 @@ async function main() {
 
       report.languages[targetLanguage] = {
         elapsedMs: Date.now() - startedAt,
+        provider: meterSince(languageMark),
         translatedAnchors: settled.translatedAnchors,
         status: settled.status,
         japaneseNodesRemaining: measured.japaneseNodes,
@@ -416,6 +432,70 @@ async function main() {
       };
     }
 
+    // A real page keeps loading as the reader scrolls, and keeps animating once
+    // they stop. Both are ordinary reading behaviour, and both are invisible to
+    // a fixture that fits on one screen.
+    const beforeScroll = await page.evaluate(MEASURE);
+    const scrollMark = meterFrom();
+    const scrollStartedAt = Date.now();
+    await page.evaluate(async (steps) => {
+      for (let step = 1; step <= steps; step += 1) {
+        const total = document.documentElement.scrollHeight;
+        window.scrollTo({ top: (total / steps) * step, behavior: "instant" });
+        await new Promise((settle) => setTimeout(settle, 700));
+      }
+    }, 12);
+    await sleep(SETTLE_MS);
+    // The page is already translated here, so the question is whether scrolling
+    // introduced untranslated text, not whether Japanese fell by a percentage.
+    const scrollDeadline = Date.now() + 60_000;
+    let settledAfterScroll = { status: "unsettled" };
+    while (Date.now() < scrollDeadline) {
+      const state = await popup.evaluate(async () => {
+        const response = await chrome.runtime.sendMessage({ type: "GET_STATE" });
+        return { status: response?.state?.status ?? null, lastError: response?.state?.lastError ?? null };
+      }).catch(() => ({ status: null, lastError: null }));
+      const current = await page.evaluate(MEASURE);
+      if (state.status === "rendered" && current.japaneseNodes <= beforeScroll.japaneseNodes) {
+        settledAfterScroll = state;
+        break;
+      }
+      await sleep(1_000);
+    }
+    const afterScroll = await page.evaluate(MEASURE);
+    mkdirSync(artifactDir, { recursive: true });
+    const scrollShot = join(artifactDir, "live-scrolled.png");
+    await page.screenshot({ path: scrollShot }).catch(() => undefined);
+    report.scroll = {
+      elapsedMs: Date.now() - scrollStartedAt,
+      status: settledAfterScroll.status ?? null,
+      textNodesBefore: beforeScroll.textNodes,
+      textNodesAfter: afterScroll.textNodes,
+      textNodesAppeared: afterScroll.textNodes - beforeScroll.textNodes,
+      japaneseBefore: beforeScroll.japaneseNodes,
+      japaneseAfter: afterScroll.japaneseNodes,
+      providerSince: meterSince(scrollMark),
+      pageOverflow: afterScroll.pageOverflow,
+      clippedAfter: afterScroll.clippedCount,
+      screenshot: scrollShot,
+    };
+
+    // Nothing is touched here. Any provider call during this window is the page
+    // animating, not the reader asking for anything.
+    const idleMark = meterFrom();
+    const idleBefore = await page.evaluate(MEASURE);
+    await sleep(15_000);
+    const idleAfter = await page.evaluate(MEASURE);
+    report.idle = {
+      windowMs: 15_000,
+      providerSince: meterSince(idleMark),
+      japaneseBefore: idleBefore.japaneseNodes,
+      japaneseAfter: idleAfter.japaneseNodes,
+      textNodesDelta: idleAfter.textNodes - idleBefore.textNodes,
+    };
+
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await sleep(SETTLE_MS);
     await popup.evaluate(() => document.querySelector(".restore-button").click());
     const restoreDeadline = Date.now() + 60_000;
     let restored = null;
@@ -476,7 +556,18 @@ async function main() {
       japaneseLeft: `${data.japaneseNodesRemaining}/${data.japaneseNodesBefore}`,
       pageOverflow: data.pageOverflow,
       newlyClipped: data.newlyClipped.length,
+      providerItems: data.provider.items,
     }])),
+    scroll: report.scroll && {
+      appearedTextNodes: report.scroll.textNodesAppeared,
+      japaneseAfter: report.scroll.japaneseAfter,
+      providerItems: report.scroll.providerSince.items,
+      status: report.scroll.status,
+    },
+    idleChurn: report.idle && {
+      providerRequests: report.idle.providerSince.requests,
+      providerItems: report.idle.providerSince.items,
+    },
     restored: report.restore?.japaneseNodes ?? null,
     pageErrors: report.diagnostics.pageErrors.length,
     reportPath,

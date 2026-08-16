@@ -99,7 +99,16 @@ function corsHeaders(request: IncomingMessage): Record<string, string> {
   };
 }
 
-function writeJson(request: IncomingMessage, response: ServerResponse, status: number, body: unknown, requestId: string): void {
+function writeJson(
+  request: IncomingMessage,
+  response: ServerResponse,
+  status: number,
+  body: unknown,
+  requestId: string,
+  // How many strings this response covered. A count is not content, and without
+  // it there is no way to see a page paying for the same text twice.
+  itemCount?: number,
+): void {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "x-request-id": requestId,
@@ -112,6 +121,7 @@ function writeJson(request: IncomingMessage, response: ServerResponse, status: n
     method: request.method,
     path: request.url,
     status,
+    ...(itemCount === undefined ? {} : { itemCount }),
   }));
 }
 
@@ -229,7 +239,7 @@ const server = createServer(async (request, response) => {
           };
         });
       const translations = validateTranslationResults(parsed.items, overriddenResults);
-    writeJson(request, response, 200, { translations }, requestId);
+    writeJson(request, response, 200, { translations }, requestId, translations.length);
   } catch (error) {
     sendError(request, response, error, requestId);
   }

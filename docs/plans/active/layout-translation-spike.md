@@ -157,8 +157,18 @@ Out of scope:
 - [x] Fix the constrained fallback on flex and grid controls, found by that run:
   `text-overflow` does not apply to a flex container, so a clipped label lost
   both ends and showed an unreadable middle fragment with no ellipsis.
-- [ ] Explain and reduce the Vietnamese pass being roughly three times slower
-  than English on the same live page.
+- [x] Explain and reduce the Vietnamese pass being roughly three times slower
+  than English on the same live page. It was not provider latency: a page that
+  mutates while a batch is in flight invalidated the pass, and the finished
+  translations were discarded and bought again.
+- [x] Cover the dynamic behaviours a single-screen fixture cannot show: content
+  appended while scrolling, a section revealed on intersection, page-owned text
+  the site keeps rewriting, recycled list rows, and a continuous animation.
+  `npm run dynamic:smoke` drives all of them offline against the mock backend,
+  and `--negative-control` proves the assertions can fail.
+- [x] Stop paying for the same string twice. Translations are reused locally
+  within a language, cleared on restore and on any backend configuration
+  change, and bounded so a long session cannot grow without limit.
 - [x] Run browser-observable accessibility validation for constrained fallback;
   screen-reader support remains outside this pass. The E2E smoke now proves
   keyboard focus/native tab order, mouse activation, Escape preservation, and
@@ -474,6 +484,43 @@ Out of scope:
   Git Bash shell left Windows unable to find it, and the failed spawn emitted an
   unhandled `error` event that killed a runner mid-cleanup and left Chrome
   running. Every runner now resolves it under `%SystemRoot%`.
+
+- Dynamic-behaviour evidence: the new fixture appends cards while scrolling,
+  reveals a section on intersection, rewrites its own status text every 900ms,
+  recycles three list rows every 1.2s, and runs a CSS animation throughout.
+  `npm run dynamic:smoke` confirms appended and revealed content is translated,
+  a recycled row never shows another row's translation, page-owned text keeps
+  showing a current translation rather than a stale one, and restore returns the
+  Japanese source. Running it with `--negative-control`, which withholds the
+  translations, turned six assertions red and exited non-zero, so the suite is
+  not vacuous.
+- Cost findings from that fixture, measured over a 10-second window in which the
+  reader does nothing: text the page rewrites on a timer cost `17` requests and
+  `35` strings before the memo and `0` and `0` after it, because the page cycles
+  through a handful of strings it has already shown. A CSS animation that
+  changes no text cost nothing in both cases. Whole-session totals fell from
+  `23` requests and `67` strings to `7` and `23`.
+- The Vietnamese slowness recorded earlier is explained and fixed. On the same
+  live page the Vietnamese pass sent `309` strings against English's `147`,
+  because the page mutated while batches were in flight, the pass was
+  invalidated, and finished translations were thrown away and requested again.
+  Results are now remembered even when their pass is superseded, provided the
+  reader has not turned translation off or changed language. The rerun sent
+  `147` strings in both languages and took `17.9s` for Vietnamese against
+  `46.4s` before, with English at `13.8s`.
+- Behaviour change recorded rather than slipped in: reusing translations locally
+  means a page can stay translated without contacting the backend. Two rules
+  keep that honest. Restore clears the reuse, so the next pass starts from the
+  backend. Any change to the backend configuration broadcasts an invalidation to
+  every tab, so results are never served under a configuration that did not
+  produce them. Both were found by existing browser proofs failing, not by
+  reasoning: the authorization-failure and delayed-response scenarios went red
+  until each rule was added.
+- Regression proof after all of it: `npm test` passed 15 files and 92 tests,
+  `tsc --noEmit` was clean, `npm run e2e:smoke` passed with zero page, console,
+  and browser-log errors, `npm run calibration:smoke` passed 6 of 6 with
+  unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
+  every measured anchor shift at restore back to `0px`.
 
 ## Result
 
