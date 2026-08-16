@@ -45,6 +45,7 @@ export default defineContentScript({
         type: "CONTENT_STATUS",
         status,
         translatedAnchors,
+        withheldAnchors: engine.withheldAnchors,
         error,
       } satisfies RuntimeMessage).catch(() => undefined);
     }, translateBatch);

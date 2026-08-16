@@ -1,4 +1,5 @@
 import { MAX_TRANSLATION_BATCH_ITEMS, type ComponentKind, type TargetLanguage, type TranslationResult } from "../../src/shared/contracts";
+import { isProtectedSource } from "../../src/shared/protected-content";
 
 export const MAX_BATCH_ITEMS = MAX_TRANSLATION_BATCH_ITEMS;
 export const MAX_SOURCE_LENGTH = 2_000;
@@ -19,9 +20,6 @@ const componentKinds: readonly ComponentKind[] = [
   "paragraph",
   "unknown",
 ];
-
-const protectedSourcePattern =
-  /(password|passcode|one[- ]time code|otp|secret|token|api[- ]?key|credit card|card number|cvv|ssn|social security|パスワード|暗証番号|クレジットカード|カード番号|秘密|トークン|APIキー)/iu;
 
 export type DataClass = "normal" | "sensitive";
 
@@ -153,7 +151,7 @@ export function parseTranslationRequest(value: unknown, allowedOrigins: readonly
     if (item.dataClass !== "normal" && item.dataClass !== "sensitive") {
       throw new ContractError("invalid_request", 400, `items[${index}].dataClass must be normal or sensitive`);
     }
-    if (item.dataClass === "sensitive" || protectedSourcePattern.test(item.source)) {
+    if (item.dataClass === "sensitive" || isProtectedSource(item.source)) {
       throw new ContractError("sensitive_content_blocked", 422, `items[${index}] contains protected content`);
     }
     // A layout hint, so it is bounded like every other field rather than

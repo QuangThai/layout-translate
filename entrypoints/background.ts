@@ -37,6 +37,7 @@ async function readState(): Promise<ExtensionState> {
     ...state,
     targetLanguage: state?.targetLanguage === "vi" ? "vi" : "en",
     translatedAnchors: state?.translatedAnchors ?? 0,
+    withheldAnchors: state?.withheldAnchors ?? 0,
   };
 }
 
@@ -108,6 +109,7 @@ async function handleMessage(
       frames.set(sender.frameId ?? 0, {
         status: message.status,
         translatedAnchors: message.translatedAnchors,
+        withheldAnchors: message.withheldAnchors,
         ...(message.error === undefined ? {} : { lastError: message.error }),
       });
       frameReports.set(tabId ?? -1, frames);
@@ -116,6 +118,7 @@ async function handleMessage(
         ...state,
         status: aggregate.status,
         translatedAnchors: aggregate.translatedAnchors,
+        withheldAnchors: aggregate.withheldAnchors ?? 0,
         lastError: aggregate.lastError,
       };
       await writeState(nextState);

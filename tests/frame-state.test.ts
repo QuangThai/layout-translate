@@ -6,7 +6,7 @@ describe("frame state aggregation", () => {
     expect(aggregateFrameStates([
       { status: "rendered", translatedAnchors: 12 },
       { status: "rendered", translatedAnchors: 5 },
-    ])).toEqual({ status: "rendered", translatedAnchors: 17 });
+    ])).toEqual({ status: "rendered", translatedAnchors: 17, withheldAnchors: 0 });
   });
 
   it("shows the state that most needs attention, not the last to report", () => {
@@ -25,7 +25,7 @@ describe("frame state aggregation", () => {
     expect(aggregateFrameStates([
       { status: "unsupported", translatedAnchors: 0 },
       { status: "rendered", translatedAnchors: 8 },
-    ])).toEqual({ status: "rendered", translatedAnchors: 8 });
+    ])).toEqual({ status: "rendered", translatedAnchors: 8, withheldAnchors: 0 });
   });
 
   it("reports unsupported only when no frame had anything to translate", () => {
@@ -43,7 +43,15 @@ describe("frame state aggregation", () => {
   });
 
   it("falls back to inactive for a tab with no frames reporting", () => {
-    expect(aggregateFrameStates([])).toEqual({ status: "inactive", translatedAnchors: 0 });
+    expect(aggregateFrameStates([])).toEqual({ status: "inactive", translatedAnchors: 0, withheldAnchors: 0 });
+  });
+
+  it("adds up the strings each frame kept on the device", () => {
+    expect(aggregateFrameStates([
+      { status: "rendered", translatedAnchors: 10, withheldAnchors: 2 },
+      { status: "rendered", translatedAnchors: 4, withheldAnchors: 3 },
+      { status: "rendered", translatedAnchors: 1 },
+    ])).toMatchObject({ translatedAnchors: 15, withheldAnchors: 5 });
   });
 
   it("ignores a frame that reported a nonsense count", () => {

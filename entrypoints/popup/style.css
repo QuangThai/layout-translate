@@ -162,6 +162,11 @@ h1 {
   color: #213035;
 }
 
+.status-note {
+  color: #cdbca8;
+  font-size: 11px;
+}
+
 .site-panel .control-label {
   overflow: hidden;
   text-overflow: ellipsis;

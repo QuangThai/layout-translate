@@ -18,6 +18,7 @@ import {
 } from "../shared/text-fit";
 import { mockTranslateBatch } from "../shared/mock-translation";
 import { TranslationMemo } from "../shared/translation-memo";
+import { isProtectedSource } from "../shared/protected-content";
 import {
   isTranslatableAttributeValue,
   TRANSLATABLE_ATTRIBUTES,
@@ -248,6 +249,7 @@ export class PageTranslationEngine {
   private readonly ownAttributeWrites = new WeakMap<HTMLElement, Map<string, number>>();
   private readonly observedScopes = new WeakSet<ShadowRoot>();
   private readonly memo = new TranslationMemo();
+  private withheldCount = 0;
   private readonly attributeRecords = new Map<string, AttributeRecord>();
   private readonly attributeRecordsByElement = new WeakMap<HTMLElement, Map<string, AttributeRecord>>();
   private nextAnchor = 1;
@@ -382,8 +384,13 @@ export class PageTranslationEngine {
         return;
       }
       this.collectAttributeRecords();
-      const pending: TranslatableRecord[] = [...this.records.values(), ...this.attributeRecords.values()]
+      const candidates: TranslatableRecord[] = [...this.records.values(), ...this.attributeRecords.values()]
         .filter((record) => record.translatedTarget !== requestedLanguage);
+      // Protected strings are held back here rather than refused at the
+      // boundary: they never leave the browser, and one of them on the page no
+      // longer costs the reader every other translation on it.
+      const pending = candidates.filter((record) => !isProtectedSource(record.source));
+      this.withheldCount = candidates.length - pending.length;
       if (pending.length === 0) {
         if (this.records.size !== recordCountBeforeCollect) {
           await this.reportStatus("rendered", this.translatedAnchorCount);
@@ -888,6 +895,11 @@ export class PageTranslationEngine {
     if (node.data === value) return;
     this.ownWriteCounts.set(node, (this.ownWriteCounts.get(node) ?? 0) + 1);
     node.data = value;
+  }
+
+  /** Strings this pass kept on the device rather than sending. */
+  get withheldAnchors(): number {
+    return this.withheldCount;
   }
 
   private get translatedAnchorCount(): number {

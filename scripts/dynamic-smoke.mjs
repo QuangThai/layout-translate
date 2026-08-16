@@ -422,6 +422,23 @@ async function main() {
     report.phases.reveal = { provider: since(revealMark), values: revealResults };
     await page.evaluate(() => window.dynamicFixture.startTextTimers());
 
+    // 1f. A string the data boundary protects. It must stay on the device, and
+    // it must not cost the reader the rest of the page.
+    const protectedText = await page.evaluate(() =>
+      document.querySelector("[data-probe='protected']")?.textContent?.trim() ?? null);
+    const protectedState = await popup.evaluate(async () => {
+      const response = await chrome.runtime.sendMessage({ type: "GET_STATE" });
+      return { withheld: response?.state?.withheldAnchors ?? 0, status: response?.state?.status ?? null };
+    });
+    check(
+      "a protected string is never translated",
+      protectedText === "パスワードは絶対に共有しないでください",
+      String(protectedText),
+    );
+    check("withheld strings are reported, not silently dropped", protectedState.withheld > 0, JSON.stringify(protectedState));
+    check("a protected string does not stop the rest of the page", protectedState.status !== "error", JSON.stringify(protectedState));
+    report.phases.protected = { text: protectedText, state: protectedState };
+
     // 2. Content appended while scrolling.
     const scrollMark = mark();
     // Scroll until the page stops growing rather than a fixed number of steps,

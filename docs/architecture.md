@@ -34,6 +34,9 @@ Owns page-facing behavior:
   skipped;
 - unsafe/non-translatable node exclusion, including the standard `translate="no"`
   opt-out and attribute values the page uses as machine data;
+- withholding strings that match the protected-content rule, so they never leave
+  the browser and one of them does not cost the reader the rest of the page; the
+  backend applies the same rule as defence in depth;
 - stable anchor IDs and original-source registry;
 - component classification;
 - geometry/layout snapshots and fit checks;

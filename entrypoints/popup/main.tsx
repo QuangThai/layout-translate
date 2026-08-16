@@ -126,6 +126,11 @@ function Popup() {
       <section className="status-panel" aria-live="polite">
         <span className="status-kicker">STATUS</span>
         <strong>{statusLabel(state)}</strong>
+        {state.withheldAnchors > 0 && (
+          <span className="status-note">
+            {state.withheldAnchors} kept on this device
+          </span>
+        )}
       </section>
 
       {site && !site.preGranted && (

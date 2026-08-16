@@ -166,6 +166,12 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Keep protected strings on the device instead of refusing the page. The
+  content script now applies the same protected-content rule as the backend
+  before sending anything, so a matching string never leaves the browser and one
+  of them no longer costs the reader every other translation on the page. The
+  popup reports how many were kept. The backend still refuses them as defence in
+  depth.
 - [x] Prove content revealed by a reader's action is translated: a `<dialog>`
   opened with `showModal`, a panel that loses its `hidden` attribute, and a menu
   revealed by a class change. All three were already handled, because content
@@ -542,6 +548,22 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Two operational findings from pointing the live runner at Japanese sites other
+  than the first one. A large retailer's site answered the automated browser with
+  an Akamai `Access Denied` page, which the runner reported as "no Japanese
+  text"; it now captures the URL, title, and a screenshot so a block page cannot
+  be mistaken for an empty one. The browser advertised itself as
+  `HeadlessChrome`; presenting the ordinary Chrome name got the real page, and a
+  site that still refuses is left alone rather than worked around further.
+- The same page then exposed a real product defect. It is a credit-card site, so
+  the word クレジットカード appears throughout, matched the protected-content rule,
+  and the backend refused the whole batch with `sensitive_content_blocked`. One
+  ordinary marketing phrase meant nothing on the page translated at all. The
+  content script now applies the same rule before sending, so protected strings
+  never leave the browser and the rest of the page is unaffected. On the same
+  page: 242 of 247 text nodes and 54 of 57 attributes now translate, with no
+  backend errors, no page overflow, nothing newly clipped, and restore returning
+  all 247. The five that stay Japanese are the protected ones.
 - Reveal finding, which contradicted the expectation that motivated the work:
   content behind a modal, a `hidden` panel, or a `display: none` menu was
   already translated before the reveal, because visibility is judged per element

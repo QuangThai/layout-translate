@@ -3,6 +3,7 @@ import type { TranslationStatus } from "./contracts";
 export interface FrameReport {
   status: TranslationStatus;
   translatedAnchors: number;
+  withheldAnchors?: number;
   lastError?: string;
 }
 
@@ -29,10 +30,12 @@ const STATUS_PRECEDENCE: readonly TranslationStatus[] = [
 export function aggregateFrameStates(frames: Iterable<FrameReport>): FrameReport {
   let status: TranslationStatus | undefined;
   let translatedAnchors = 0;
+  let withheldAnchors = 0;
   let lastError: string | undefined;
 
   for (const frame of frames) {
     translatedAnchors += Number.isFinite(frame.translatedAnchors) ? frame.translatedAnchors : 0;
+    withheldAnchors += Number.isFinite(frame.withheldAnchors) ? Number(frame.withheldAnchors) : 0;
     if (!lastError && frame.lastError) lastError = frame.lastError;
     if (
       status === undefined
@@ -45,6 +48,7 @@ export function aggregateFrameStates(frames: Iterable<FrameReport>): FrameReport
   return {
     status: status ?? "inactive",
     translatedAnchors,
+    withheldAnchors,
     ...(lastError === undefined ? {} : { lastError }),
   };
 }

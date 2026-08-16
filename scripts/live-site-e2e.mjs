@@ -355,6 +355,11 @@ async function main() {
       executablePath: chromePath,
       headless: true,
       viewport: { width: 1440, height: 900 },
+      // Headless Chrome advertises itself as HeadlessChrome, and some sites
+      // answer that with a block page instead of their content. This is the
+      // same browser either way; only the label changes. A site that still
+      // refuses is left alone rather than worked around further.
+      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
       args: [
         `--disable-extensions-except=${runtimeExtensionRoot}`,
         `--load-extension=${runtimeExtensionRoot}`,
@@ -389,7 +394,24 @@ async function main() {
 
     const baseline = await page.evaluate(MEASURE);
     report.baseline = baseline;
-    assert(baseline.japaneseNodes > 0, "the target page has no Japanese text to translate");
+    if (baseline.japaneseNodes === 0) {
+      // Say what the browser actually received. A site that serves a different
+      // page to this browser looks identical to a site with no Japanese on it.
+      mkdirSync(artifactDir, { recursive: true });
+      const shot = join(artifactDir, "live-empty.png");
+      await page.screenshot({ path: shot }).catch(() => undefined);
+      report.emptyPageDiagnostics = {
+        ...await page.evaluate(() => ({
+          url: location.href,
+          title: document.title,
+          bodyChildren: document.body?.children.length ?? 0,
+          bodyTextLength: (document.body?.innerText ?? "").trim().length,
+          firstText: (document.body?.innerText ?? "").trim().slice(0, 200),
+        })),
+        screenshot: shot,
+      };
+      throw new Error(`the target page returned no Japanese text: ${JSON.stringify(report.emptyPageDiagnostics)}`);
+    }
 
     // The real flow injects on grant instead of reloading, so exercise that path.
     await worker.evaluate(async (file) => {

@@ -17,6 +17,8 @@ export interface ExtensionState {
   targetLanguage: TargetLanguage;
   status: TranslationStatus;
   translatedAnchors: number;
+  /** Strings kept on this device because they matched the protected-content rule. */
+  withheldAnchors: number;
   lastError?: string;
 }
 
@@ -25,6 +27,7 @@ export const DEFAULT_EXTENSION_STATE: ExtensionState = {
   targetLanguage: "en",
   status: "inactive",
   translatedAnchors: 0,
+  withheldAnchors: 0,
 };
 
 export type ComponentKind =
@@ -95,6 +98,7 @@ export type RuntimeMessage =
       type: "CONTENT_STATUS";
       status: TranslationStatus;
       translatedAnchors: number;
+      withheldAnchors: number;
       error?: string;
     };
 
