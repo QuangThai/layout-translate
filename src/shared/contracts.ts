@@ -62,6 +62,38 @@ export interface TranslationResult {
   compact: string;
 }
 
+/**
+ * The audit `SPEC.md` asks Phase 0 to produce, in counts only. It carries no
+ * page text: what a reviewer needs here is how many anchors held their box, how
+ * many fell back, and whether anything semantic-critical was shortened.
+ */
+export interface TranslationAudit {
+  anchors: number;
+  withheld: number;
+  byComponent: Partial<Record<ComponentKind, number>>;
+  /**
+   * Geometry per component policy. Mixing them hides the answer: a paragraph is
+   * meant to reflow, a navigation item is not, so one combined percentage says
+   * nothing about whether the policy held.
+   */
+  byPolicy: Partial<Record<PreserveMode, {
+    anchors: number;
+    /** Position held, which includes being pushed down by content above. */
+    withinTolerance: number;
+    /** The anchor's own box held its size, which is what a hard policy promises. */
+    boxHeld: number;
+    maxShiftPx: number;
+    maxSizeDeltaPx: number;
+    overflows: number;
+  }>>;
+  tolerancePx: number;
+  byFallback: { full: number; compact: number; ellipsisTooltip: number };
+  /** Semantic-critical anchors whose displayed text is not the full translation. */
+  criticalBreaks: number;
+  /** Anchors whose own box overflows after translation. */
+  overflows: number;
+}
+
 export const BACKEND_CONFIG_KEY = "layout-translate:backend";
 
 export interface BackendConfig {
@@ -85,6 +117,7 @@ export type ContentCommand =
 
 export type RuntimeMessage =
   | { type: "GET_STATE" }
+  | { type: "GET_AUDIT" }
   | { type: "SET_ENABLED"; enabled: boolean }
   | { type: "SET_TARGET_LANGUAGE"; targetLanguage: TargetLanguage }
   | { type: "RESTORE_ORIGINAL" }
@@ -99,11 +132,14 @@ export type RuntimeMessage =
       status: TranslationStatus;
       translatedAnchors: number;
       withheldAnchors: number;
+      /** Sent only once a frame has finished rendering, since it costs a layout pass. */
+      audit?: TranslationAudit;
       error?: string;
     };
 
 export type RuntimeResponse =
   | { type: "STATE"; state: ExtensionState; delivered?: boolean }
+  | { type: "AUDIT"; audit: TranslationAudit }
   | { type: "ACK"; state: ExtensionState; delivered?: boolean }
   | { type: "TRANSLATION_RESULT"; translations: TranslationResult[] }
   | { type: "UNAVAILABLE"; state: ExtensionState; reason: string };

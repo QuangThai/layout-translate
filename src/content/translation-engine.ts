@@ -3,6 +3,7 @@ import type {
   ExtensionState,
   PreserveMode,
   TargetLanguage,
+  TranslationAudit,
   TranslationResult,
   TranslationStatus,
 } from "../shared/contracts";
@@ -98,6 +99,9 @@ export type BatchTranslator = (
 // A real provider answers in seconds, so one request for the whole page leaves
 // it untouched for the sum of every batch. Smaller batches issued together let
 // the first visible text land while the rest is still in flight.
+/** The provisional spike target from the active plan, not an approved SLA. */
+export const PROVISIONAL_SHIFT_TOLERANCE_PX = 5;
+
 export const TRANSLATION_CHUNK_SIZE = 12;
 export const TRANSLATION_CONCURRENCY = 4;
 
@@ -900,6 +904,62 @@ export class PageTranslationEngine {
   /** Strings this pass kept on the device rather than sending. */
   get withheldAnchors(): number {
     return this.withheldCount;
+  }
+
+  /**
+   * The Phase 0 audit `SPEC.md` asks for, in counts only. It reports what the
+   * engine decided per anchor, which is exactly what a reviewer cannot see from
+   * the outside: which policy applied, which fallback was needed, and whether
+   * anything semantic-critical ended up shortened.
+   */
+  collectAudit(): TranslationAudit {
+    const audit: TranslationAudit = {
+      anchors: 0,
+      withheld: this.withheldCount,
+      byComponent: {},
+      byPolicy: {},
+      tolerancePx: PROVISIONAL_SHIFT_TOLERANCE_PX,
+      byFallback: { full: 0, compact: 0, ellipsisTooltip: 0 },
+      criticalBreaks: 0,
+      overflows: 0,
+    };
+
+    for (const record of this.records.values()) {
+      if (!record.translation || !record.node.isConnected) continue;
+      audit.anchors += 1;
+      audit.byComponent[record.component] = (audit.byComponent[record.component] ?? 0) + 1;
+
+      // Judge each anchor against the policy that was applied to it. The
+      // baseline was taken before translation, in document coordinates, so the
+      // comparison survives the reader having scrolled since.
+      const now = measureElement(record.element);
+      const before = record.beforeGeometry;
+      const policy = audit.byPolicy[record.mode] ?? { anchors: 0, withinTolerance: 0, boxHeld: 0, maxShiftPx: 0, maxSizeDeltaPx: 0, overflows: 0 };
+      policy.anchors += 1;
+      if (before) {
+        const shift = Math.hypot(now.documentLeft - before.documentLeft, now.documentTop - before.documentTop);
+        if (shift <= PROVISIONAL_SHIFT_TOLERANCE_PX) policy.withinTolerance += 1;
+        if (shift > policy.maxShiftPx) policy.maxShiftPx = Math.round(shift * 100) / 100;
+        // Position alone cannot answer whether a policy held: anything below a
+        // block that grew is pushed down without its own box changing at all.
+        const sizeDelta = Math.max(Math.abs(now.width - before.width), Math.abs(now.height - before.height));
+        if (sizeDelta <= PROVISIONAL_SHIFT_TOLERANCE_PX) policy.boxHeld += 1;
+        if (sizeDelta > policy.maxSizeDeltaPx) policy.maxSizeDeltaPx = Math.round(sizeDelta * 100) / 100;
+      }
+      if (hasOverflow(now)) policy.overflows += 1;
+      audit.byPolicy[record.mode] = policy;
+      if (record.fallback === "full") audit.byFallback.full += 1;
+      else if (record.fallback === "compact") audit.byFallback.compact += 1;
+      else if (record.fallback === "ellipsis-tooltip") audit.byFallback.ellipsisTooltip += 1;
+      // Critical content may be clipped visually as long as the full value is
+      // still the text and is reachable; it is a break only if the engine
+      // replaced it with something shorter.
+      if (record.mode === "critical" && record.displayedText !== record.translation.full) {
+        audit.criticalBreaks += 1;
+      }
+      if (hasOverflow(now)) audit.overflows += 1;
+    }
+    return audit;
   }
 
   private get translatedAnchorCount(): number {

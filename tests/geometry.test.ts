@@ -4,6 +4,8 @@ import { hasOverflow, siblingShift, type GeometrySnapshot } from "../src/shared/
 const snapshot = (overrides: Partial<GeometrySnapshot> = {}): GeometrySnapshot => ({
   left: 0,
   top: 0,
+  documentLeft: 0,
+  documentTop: 0,
   width: 320,
   height: 48,
   scrollWidth: 320,

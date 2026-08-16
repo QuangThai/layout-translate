@@ -46,6 +46,9 @@ export default defineContentScript({
         status,
         translatedAnchors,
         withheldAnchors: engine.withheldAnchors,
+        // Auditing measures every anchor, so it runs when a pass has settled
+        // rather than on each status change.
+        ...(status === "rendered" ? { audit: engine.collectAudit() } : {}),
         error,
       } satisfies RuntimeMessage).catch(() => undefined);
     }, translateBatch);

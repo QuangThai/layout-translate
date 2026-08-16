@@ -1,9 +1,10 @@
-import type { TranslationStatus } from "./contracts";
+import type { TranslationAudit, TranslationStatus } from "./contracts";
 
 export interface FrameReport {
   status: TranslationStatus;
   translatedAnchors: number;
   withheldAnchors?: number;
+  audit?: TranslationAudit;
   lastError?: string;
 }
 

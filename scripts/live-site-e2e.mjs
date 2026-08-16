@@ -167,7 +167,53 @@ const MEASURE = `(() => {
       }
     }
   }
+  // SPEC section 10 asks Phase 0 to measure anchor shift, sibling displacement,
+  // overflow, and line changes. A sample of real translated elements is taken
+  // per component policy, keyed by a stable path so before and after line up.
+  const pathOf = (element) => {
+    const parts = [];
+    let current = element;
+    while (current && current !== document.body && parts.length < 12) {
+      const parent = current.parentElement;
+      if (!parent) break;
+      parts.push(current.tagName + ":" + [...parent.children].indexOf(current));
+      current = parent;
+    }
+    return parts.reverse().join("/");
+  };
+  const lineCount = (element, style) => {
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    if (!Number.isFinite(lineHeight) || lineHeight <= 0) return null;
+    return Math.max(1, Math.round(element.getBoundingClientRect().height / lineHeight));
+  };
+  const sampled = {};
+  const candidates = [...document.querySelectorAll(
+    "nav a, header a, button, [role='button'], h1, h2, h3, th, td, li, p",
+  )].filter((element) => {
+    const style = getComputedStyle(element);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    return (element.textContent ?? "").trim().length > 0;
+  }).slice(0, 120);
+  for (const element of candidates) {
+    const style = getComputedStyle(element);
+    const box = element.getBoundingClientRect();
+    const sibling = element.nextElementSibling;
+    const siblingBox = sibling?.getBoundingClientRect();
+    sampled[pathOf(element)] = {
+      tag: element.tagName.toLowerCase(),
+      left: Math.round(box.left * 100) / 100,
+      top: Math.round((box.top + window.scrollY) * 100) / 100,
+      width: Math.round(box.width * 100) / 100,
+      height: Math.round(box.height * 100) / 100,
+      lines: lineCount(element, style),
+      overflowing: element.scrollWidth > element.clientWidth + 1 && element.clientWidth > 0,
+      siblingLeft: siblingBox ? Math.round(siblingBox.left * 100) / 100 : null,
+      siblingTop: siblingBox ? Math.round((siblingBox.top + window.scrollY) * 100) / 100 : null,
+    };
+  }
+
   return {
+    sampled,
     japaneseNodes,
     japaneseAttributes,
     japaneseAttributeSamples,
@@ -180,6 +226,53 @@ const MEASURE = `(() => {
     scrollHeight: document.documentElement.scrollHeight,
   };
 })()`;
+
+const TOLERANCE_PX = 5;
+
+/**
+ * The audit `SPEC.md` section 11 defines, computed from the sampled elements
+ * plus the engine's own per-anchor account. The threshold is the provisional
+ * spike target, not an approved production tolerance.
+ */
+function buildSpecAudit(before, after, engineAudit) {
+  let anchors = 0;
+  let withinTolerance = 0;
+  let overflows = 0;
+  let maxSiblingShiftPx = 0;
+  let maxAnchorShiftPx = 0;
+  let lineChanges = 0;
+  const worst = [];
+
+  for (const [path, from] of Object.entries(before.sampled ?? {})) {
+    const to = after.sampled?.[path];
+    if (!to) continue;
+    anchors += 1;
+    const shift = Math.hypot(to.left - from.left, to.top - from.top);
+    if (shift <= TOLERANCE_PX) withinTolerance += 1;
+    if (shift > maxAnchorShiftPx) maxAnchorShiftPx = shift;
+    if (to.overflowing) overflows += 1;
+    if (from.lines !== null && to.lines !== null && from.lines !== to.lines) lineChanges += 1;
+    if (from.siblingTop !== null && to.siblingTop !== null) {
+      const siblingShift = Math.hypot((to.siblingLeft ?? 0) - (from.siblingLeft ?? 0), to.siblingTop - from.siblingTop);
+      if (siblingShift > maxSiblingShiftPx) maxSiblingShiftPx = siblingShift;
+    }
+    if (shift > TOLERANCE_PX) worst.push({ path, tag: to.tag, shift: Math.round(shift * 100) / 100 });
+  }
+
+  worst.sort((left, right) => right.shift - left.shift);
+  return {
+    criticalBreaks: engineAudit?.criticalBreaks ?? null,
+    anchors,
+    withinTolerance,
+    truncated: engineAudit?.byFallback?.ellipsisTooltip ?? null,
+    maxAnchorShiftPx: Math.round(maxAnchorShiftPx * 100) / 100,
+    maxSiblingShiftPx: Math.round(maxSiblingShiftPx * 100) / 100,
+    overflows,
+    lineChanges,
+    tolerancePx: TOLERANCE_PX,
+    worstShifts: worst.slice(0, 5),
+  };
+}
 
 function compareAnchors(before, after) {
   const shifts = {};
@@ -263,8 +356,17 @@ async function main() {
   assert(target, "a target site is required: set LAYOUT_TRANSLATE_SITES in .env or pass --site=");
   assert(existsSync(buildRoot), "built extension is missing; run `npm run build` first");
 
-  const targetUrl = new URL(target.includes("://") ? target : `https://${target}`);
+  const requestedUrl = new URL(target.includes("://") ? target : `https://${target}`);
+  // A site that redirects to another origin would leave the grant pointing at
+  // an origin the reader never lands on, and every injection would be refused.
+  const resolved = await fetch(requestedUrl, { redirect: "follow" })
+    .then((response) => new URL(response.url))
+    .catch(() => requestedUrl);
+  const targetUrl = resolved;
   const origin = targetUrl.origin;
+  if (origin !== requestedUrl.origin) {
+    console.error(`Following a redirect from ${requestedUrl.origin} to ${origin}`);
+  }
   const language = arg("language", "both");
   assert(["en", "vi", "both"].includes(language), `unsupported --language=${language}`);
   const languages = language === "both" ? ["en", "vi"] : [language];
@@ -391,6 +493,13 @@ async function main() {
     await page.waitForLoadState("networkidle", { timeout: 60_000 }).catch(() => undefined);
     await page.evaluate("document.fonts?.ready").catch(() => undefined);
     await sleep(SETTLE_MS);
+    // A redirect the browser performed after loading, which the HTTP-level
+    // resolution above cannot see, leaves the grant on the wrong origin.
+    const landedOrigin = new URL(page.url()).origin;
+    if (landedOrigin !== origin) {
+      throw new Error();
+    }
+    report.landedUrl = page.url();
 
     const baseline = await page.evaluate(MEASURE);
     report.baseline = baseline;
@@ -414,10 +523,20 @@ async function main() {
     }
 
     // The real flow injects on grant instead of reloading, so exercise that path.
-    await worker.evaluate(async (file) => {
+    report.injection = await worker.evaluate(async (file) => {
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (!tab?.id) throw new Error("no active tab to inject into");
+      // A real page often embeds frames from other origins, which this grant
+      // does not cover. Those frames stay untranslated; failing to inject into
+      // one must not stop the page the reader actually asked for.
       await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [file] });
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        files: [file],
+      }).catch((error) => ({ error: String(error?.message ?? error).slice(0, 160) }));
+      return Array.isArray(results)
+        ? { frames: results.length, skipped: null }
+        : { frames: 1, skipped: results.error };
     }, "/content-scripts/translate.js");
 
     const popup = await context.newPage();
@@ -447,6 +566,11 @@ async function main() {
       );
       await sleep(SETTLE_MS);
       const measured = await page.evaluate(MEASURE);
+      // The engine's own account of what it decided per anchor, counts only.
+      const engineAudit = await popup.evaluate(async () => {
+        const response = await chrome.runtime.sendMessage({ type: "GET_AUDIT" });
+        return response?.audit ?? null;
+      }).catch(() => null);
       mkdirSync(artifactDir, { recursive: true });
       const screenshot = join(artifactDir, `live-${targetLanguage}.png`);
       await page.screenshot({ path: screenshot }).catch(() => undefined);
@@ -461,6 +585,8 @@ async function main() {
         japaneseAttributesBefore: baseline.japaneseAttributes,
         japaneseAttributesRemaining: measured.japaneseAttributes,
         japaneseAttributeSamples: measured.japaneseAttributeSamples,
+        engineAudit,
+        specAudit: buildSpecAudit(baseline, measured, engineAudit),
         anchorShifts: compareAnchors(baseline, measured),
         pageOverflowBefore: baseline.pageOverflow,
         pageOverflow: measured.pageOverflow,
@@ -599,6 +725,16 @@ async function main() {
       pageOverflow: data.pageOverflow,
       newlyClipped: data.newlyClipped.length,
       providerItems: data.provider.items,
+      spec: data.specAudit && {
+        criticalBreaks: data.specAudit.criticalBreaks,
+        anchors: data.specAudit.anchors,
+        withinTolerance: data.specAudit.withinTolerance,
+        truncated: data.specAudit.truncated,
+        maxSiblingShiftPx: data.specAudit.maxSiblingShiftPx,
+        overflows: data.specAudit.overflows,
+        lineChanges: data.specAudit.lineChanges,
+      },
+      byPolicy: data.engineAudit?.byPolicy,
     }])),
     scroll: report.scroll && {
       appearedTextNodes: report.scroll.textNodesAppeared,

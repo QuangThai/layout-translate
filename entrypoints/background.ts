@@ -5,7 +5,10 @@ import {
   type ContentCommand,
   type ExtensionState,
   type RuntimeMessage,
+  type ComponentKind,
+  type PreserveMode,
   type RuntimeResponse,
+  type TranslationAudit,
 } from "../src/shared/contracts";
 import { translateViaBackend } from "../src/shared/backend-client";
 import { aggregateFrameStates, type FrameReport } from "../src/shared/frame-state";
@@ -55,17 +58,22 @@ async function sendToTab(tabId: number | undefined, command: ContentCommand): Pr
   }
 }
 
-async function sendToActiveTab(command: ContentCommand): Promise<boolean> {
+/**
+ * The page the popup is acting on. A real action popup does not become a
+ * browser tab, but automation can open popup.html as one, so fall back to the
+ * nearest page in the same window rather than addressing the extension page.
+ */
+async function findActivePageTab() {
   const tabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
   const activePage = tabs.find((tab) => /^https?:\/\//u.test(tab.url ?? ""));
-  if (activePage?.id !== undefined) return sendToTab(activePage.id, command);
-
-  // A real action popup does not become a browser tab, but automation can open
-  // popup.html as a tab. In that case, keep targeting the nearest page in the
-  // same window instead of sending a content command to the extension page.
+  if (activePage) return activePage;
   const windowTabs = await browser.tabs.query({ lastFocusedWindow: true });
-  const pageTab = windowTabs.find((tab) => /^https?:\/\//u.test(tab.url ?? ""));
-  return sendToTab(pageTab?.id, command);
+  return windowTabs.find((tab) => /^https?:\/\//u.test(tab.url ?? ""));
+}
+
+async function sendToActiveTab(command: ContentCommand): Promise<boolean> {
+  const target = await findActivePageTab();
+  return sendToTab(target?.id, command);
 }
 
 async function handleMessage(
@@ -77,6 +85,48 @@ async function handleMessage(
   switch (message.type) {
     case "GET_STATE":
       return { type: "STATE", state };
+    case "GET_AUDIT": {
+      const target = await findActivePageTab();
+      const audit: TranslationAudit = {
+        anchors: 0,
+        withheld: 0,
+        byComponent: {},
+        byPolicy: {},
+        tolerancePx: 0,
+        byFallback: { full: 0, compact: 0, ellipsisTooltip: 0 },
+        criticalBreaks: 0,
+        overflows: 0,
+      };
+      // Each frame reports its own audit when it settles; a reader sees one page.
+      for (const frame of frameReports.get(target?.id ?? -1)?.values() ?? []) {
+        const partial = frame.audit;
+        if (!partial) continue;
+        audit.anchors += partial.anchors;
+        audit.withheld += partial.withheld;
+        audit.criticalBreaks += partial.criticalBreaks;
+        audit.overflows += partial.overflows;
+        audit.byFallback.full += partial.byFallback.full;
+        audit.byFallback.compact += partial.byFallback.compact;
+        audit.byFallback.ellipsisTooltip += partial.byFallback.ellipsisTooltip;
+        for (const [component, count] of Object.entries(partial.byComponent) as Array<[ComponentKind, number]>) {
+          audit.byComponent[component] = (audit.byComponent[component] ?? 0) + count;
+        }
+        audit.tolerancePx = partial.tolerancePx;
+        // Per policy, because a paragraph is meant to reflow and a navigation
+        // item is not; one combined number answers neither question.
+        for (const [mode, value] of Object.entries(partial.byPolicy) as Array<[PreserveMode, NonNullable<TranslationAudit["byPolicy"][PreserveMode]>]>) {
+          const totals = audit.byPolicy[mode] ?? { anchors: 0, withinTolerance: 0, boxHeld: 0, maxShiftPx: 0, maxSizeDeltaPx: 0, overflows: 0 };
+          totals.anchors += value.anchors;
+          totals.withinTolerance += value.withinTolerance;
+          totals.boxHeld += value.boxHeld;
+          totals.overflows += value.overflows;
+          totals.maxShiftPx = Math.max(totals.maxShiftPx, value.maxShiftPx);
+          totals.maxSizeDeltaPx = Math.max(totals.maxSizeDeltaPx, value.maxSizeDeltaPx);
+          audit.byPolicy[mode] = totals;
+        }
+      }
+      return { type: "AUDIT", audit };
+    }
     case "TRANSLATE_BATCH": {
       try {
         const config = await readBackendConfig();
@@ -110,6 +160,7 @@ async function handleMessage(
         status: message.status,
         translatedAnchors: message.translatedAnchors,
         withheldAnchors: message.withheldAnchors,
+        audit: message.audit ?? frames.get(sender.frameId ?? 0)?.audit,
         ...(message.error === undefined ? {} : { lastError: message.error }),
       });
       frameReports.set(tabId ?? -1, frames);

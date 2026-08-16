@@ -144,6 +144,9 @@ Out of scope:
   guessing which text is a proper noun.
 - [x] Send a measured character budget for regions that must keep their box, so
   the provider can shorten to the space that exists.
+- [ ] Give the medium policy a measured bound. Real pages show it allowing
+  changes of `143px` to `269px`, which is permitted by "limited controlled
+  change" only because that phrase has no number behind it.
 - [ ] Reduce the remaining Vietnamese clipping. The budget did not move it: a
   control sized to two or three Japanese characters has no room for any
   accurate English or Vietnamese label, so those anchors correctly fall back to
@@ -166,6 +169,11 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Measure what `SPEC.md` section 10 actually asks Phase 0 to measure, on
+  real pages: anchor shift, sibling displacement, overflow, line changes,
+  truncation, and critical breaks, reported per component policy in the shape
+  section 11 defines. The engine reports its own per-anchor account in counts
+  only, so the audit says which policy applied rather than guessing from markup.
 - [x] Keep protected strings on the device instead of refusing the page. The
   content script now applies the same protected-content rule as the backend
   before sending anything, so a matching string never leaves the browser and one
@@ -548,6 +556,25 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- SPEC-shaped measurement across three real Japanese pages, in English, with
+  `gpt-4.1-mini`. The number that answers the product promise is whether an
+  anchor kept its own box, not whether it stayed at the same position: anything
+  below a block that grew is pushed down without its own box changing at all,
+  and reporting that as a failure would have been misleading.
+
+  | Page | Anchors | Hard box held | Medium box held | Critical breaks | Page overflow |
+  | --- | --- | --- | --- | --- | --- |
+  | Card issuer | 242 | 49/49 | 83/166 | 0 | none |
+  | Retailer | 371 | 152/157 | 106/201 | 0 | none |
+  | Broadcaster news | 521 | 309/309 | 77/147 | 0 | none |
+
+  Hard-policy anchors held their box in 510 of 515 cases at the provisional
+  `5px` target, and the largest hard-policy size change seen was `16.39px` on
+  one page and `0px` on the other two. Nothing semantic-critical was shortened
+  anywhere. Truncation to ellipsis plus tooltip was used 6, 8, and 19 times.
+  Medium-policy anchors held their box about half the time, which is what that
+  policy permits, but the largest changes were `143px`, `160px`, and `269px`,
+  so "limited controlled change" has no measured bound yet.
 - Two operational findings from pointing the live runner at Japanese sites other
   than the first one. A large retailer's site answered the automated browser with
   an Akamai `Access Denied` page, which the runner reported as "no Japanese
