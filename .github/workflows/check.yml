@@ -42,3 +42,56 @@ jobs:
 
       - name: Offline translation benchmark contract
         run: npm run benchmark:translation
+
+  # The proofs that actually exercise the product were local-only, so a
+  # regression in them was caught by someone remembering to run them. They need a
+  # browser, but nothing else: all three drive the offline mock backend, so they
+  # cost nothing and need no provider credentials.
+  browser-proofs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Locate the browser
+        run: echo "LAYOUT_TRANSLATE_CHROME=$(which google-chrome || which chromium-browser)" >> "$GITHUB_ENV"
+
+      - name: Build extension and fixtures
+        run: |
+          npm run build
+          npm run framework:build
+
+      - name: Fixture browser proof
+        run: node scripts/e2e-smoke.mjs
+
+      - name: Dynamic page proof
+        run: node scripts/dynamic-smoke.mjs
+
+      # Withholding the translations must turn those assertions red. The runner
+      # fails this step if they stay green, since then they prove nothing.
+      - name: Dynamic page proof cannot pass vacuously
+        run: node scripts/dynamic-smoke.mjs --negative-control
+
+      - name: Layout calibration gate
+        run: node scripts/calibration-smoke.mjs
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-proof-reports
+          path: |
+            .output/e2e-smoke-report.json
+            .output/dynamic-smoke-report.json
+            .output/calibration-report.json
+          if-no-files-found: warn

@@ -17,6 +17,7 @@ import { delimiter, dirname, join, resolve } from "node:path";
 import { createServer as createTcpServer } from "node:net";
 import { taskkillCommand } from "./process-tree.mjs";
 import { chromium } from "playwright-core";
+import { findChrome } from "./chrome.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const buildRoot = join(repositoryRoot, ".output", "chrome-mv3");
@@ -66,34 +67,6 @@ async function findFreePort() {
   return port;
 }
 
-function findChrome() {
-  const candidates = [];
-  if (process.env.LAYOUT_TRANSLATE_CHROME) candidates.push(process.env.LAYOUT_TRANSLATE_CHROME);
-  const browserRoot = process.env.USERPROFILE
-    ? join(process.env.USERPROFILE, ".agent-browser", "browsers")
-    : undefined;
-  if (browserRoot && existsSync(browserRoot)) {
-    const stack = [browserRoot];
-    while (stack.length) {
-      const current = stack.pop();
-      let entries = [];
-      try {
-        entries = readdirSync(current, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        const full = join(current, entry.name);
-        if (entry.isDirectory()) stack.push(full);
-        else if (/^chrome(\.exe)?$/iu.test(entry.name)) candidates.push(full);
-      }
-    }
-  }
-  candidates.push(...(process.env.PATH ?? "").split(delimiter).filter(Boolean).map((dir) => join(dir, "chrome.exe")));
-  const chrome = candidates.find((candidate) => existsSync(candidate));
-  assert(chrome, "Chrome for Testing was not found; set LAYOUT_TRANSLATE_CHROME");
-  return chrome;
-}
 
 /** Copies the build and declares the target origin, replacing the interactive grant. */
 function prepareExtension(origin) {

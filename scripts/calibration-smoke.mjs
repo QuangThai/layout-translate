@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve, sep } from "node:path";
 import { createServer as createTcpServer } from "node:net";
 import { taskkillCommand } from "./process-tree.mjs";
+import { findChrome } from "./chrome.mjs";
 import {
   classifyFailure,
   readTraceMetadata,
@@ -164,25 +165,6 @@ async function waitFor(predicate, description, timeout = 15000) {
   throw new Error(`Timed out waiting for ${description}${lastError ? `: ${lastError.message}` : ""}`);
 }
 
-function findChromeForTesting() {
-  const candidates = [];
-  if (process.env.LAYOUT_TRANSLATE_CHROME) candidates.push(process.env.LAYOUT_TRANSLATE_CHROME);
-  const browserRoot = process.env.USERPROFILE
-    ? join(process.env.USERPROFILE, ".agent-browser", "browsers")
-    : undefined;
-  if (browserRoot && existsSync(browserRoot)) {
-    for (const version of readdirSync(browserRoot).sort().reverse()) {
-      candidates.push(join(browserRoot, version, "chrome.exe"));
-    }
-  }
-  candidates.push(...(process.env.PATH ?? "")
-    .split(delimiter)
-    .filter(Boolean)
-    .map((directory) => join(directory, "chrome.exe")));
-  const chrome = candidates.find((candidate) => existsSync(candidate));
-  assert(chrome, "Chrome for Testing was not found; run `agent-browser install` or set LAYOUT_TRANSLATE_CHROME");
-  return chrome;
-}
 
 function startFixtureServer() {
   const server = createServer((request, response) => {
@@ -441,7 +423,7 @@ function heightDelta(before, after) {
 
 async function main() {
   assert(existsSync(extensionRoot), "built extension is missing; run `npm run build` first");
-  const chromePath = findChromeForTesting();
+  const chromePath = findChrome();
   const cdpPort = await findFreePort();
   const profilePath = mkdtempSync(join(tmpdir(), "layout-translate-calibration-"));
   const server = startFixtureServer();

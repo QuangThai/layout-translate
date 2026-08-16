@@ -15,6 +15,7 @@ import { createServer as createTcpServer } from "node:net";
 import { validateRealCorpus } from "./real-corpus-preflight.mjs";
 import { classifyFailure, readTraceMetadata, removeOwnedArtifacts } from "./trace-metadata.mjs";
 import { taskkillCommand } from "./process-tree.mjs";
+import { findChrome } from "./chrome.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(repositoryRoot, ".output", "chrome-mv3");
@@ -122,18 +123,6 @@ async function waitFor(predicate, description, timeout = 15_000) {
   throw new Error(`Timed out waiting for ${description}${lastError ? `: ${lastError.message}` : ""}`);
 }
 
-function findChromeForTesting() {
-  const candidates = [];
-  if (process.env.LAYOUT_TRANSLATE_CHROME) candidates.push(process.env.LAYOUT_TRANSLATE_CHROME);
-  const browserRoot = process.env.USERPROFILE ? join(process.env.USERPROFILE, ".agent-browser", "browsers") : undefined;
-  if (browserRoot && existsSync(browserRoot)) {
-    for (const version of readdirSync(browserRoot).sort().reverse()) candidates.push(join(browserRoot, version, "chrome.exe"));
-  }
-  candidates.push(...(process.env.PATH ?? "").split(delimiter).filter(Boolean).map((directory) => join(directory, "chrome.exe")));
-  const chrome = candidates.find((candidate) => existsSync(candidate));
-  assert(chrome, "Chrome for Testing was not found; run `agent-browser install` or set LAYOUT_TRANSLATE_CHROME");
-  return chrome;
-}
 
 function startCorpusServer(corpusRoot, allowedFiles) {
   const server = createServer((request, response) => {
@@ -371,7 +360,7 @@ async function waitForTranslationCases(cdp, page, cases, locale, popup) {
 async function runBrowserMode({ mode, corpusRoot, manifest, preflight }) {
   const translationEnabled = mode === "translation";
   if (translationEnabled || mode === "both") assert(existsSync(extensionRoot), "built extension is missing; run `npm run build` first");
-  const chromePath = findChromeForTesting();
+  const chromePath = findChrome();
   const cdpPort = await findFreePort();
   const profilePath = mkdtempSync(join(tmpdir(), "layout-translate-real-corpus-"));
   const allowedFiles = new Set(preflight.files);

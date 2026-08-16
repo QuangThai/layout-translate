@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { createServer as createTcpServer } from "node:net";
 import { taskkillCommand } from "./process-tree.mjs";
+import { findChrome } from "./chrome.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(repositoryRoot, ".output", "chrome-mv3");
@@ -95,28 +96,6 @@ async function findFreePort() {
   return port;
 }
 
-function findChrome() {
-  const candidates = [];
-  if (process.env.LAYOUT_TRANSLATE_CHROME) candidates.push(process.env.LAYOUT_TRANSLATE_CHROME);
-  const browserRoot = process.env.USERPROFILE
-    ? join(process.env.USERPROFILE, ".agent-browser", "browsers")
-    : undefined;
-  if (browserRoot && existsSync(browserRoot)) {
-    const stack = [browserRoot];
-    while (stack.length) {
-      const current = stack.pop();
-      for (const entry of readdirSyncSafe(current)) {
-        const full = join(current, entry.name);
-        if (entry.isDirectory()) stack.push(full);
-        else if (/^chrome(\.exe)?$/iu.test(entry.name)) candidates.push(full);
-      }
-    }
-  }
-  candidates.push(...(process.env.PATH ?? "").split(delimiter).filter(Boolean).map((dir) => join(dir, "chrome.exe")));
-  const chrome = candidates.find((candidate) => existsSync(candidate));
-  assert(chrome, "Chrome for Testing was not found; run `agent-browser install` or set LAYOUT_TRANSLATE_CHROME");
-  return chrome;
-}
 
 function readdirSyncSafe(directory) {
   try {

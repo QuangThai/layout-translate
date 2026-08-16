@@ -12,6 +12,7 @@ import { delimiter, dirname, join, resolve } from "node:path";
 import { createServer as createTcpServer } from "node:net";
 import { chromium } from "playwright-core";
 import { taskkillCommand } from "./process-tree.mjs";
+import { findChrome } from "./chrome.mjs";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const extensionRoot = join(repositoryRoot, ".output", "chrome-mv3");
@@ -99,22 +100,6 @@ async function findFreePort() {
   return port;
 }
 
-function findChrome() {
-  const candidates = [];
-  if (process.env.LAYOUT_TRANSLATE_CHROME) candidates.push(process.env.LAYOUT_TRANSLATE_CHROME);
-  const browserRoot = process.env.USERPROFILE
-    ? join(process.env.USERPROFILE, ".agent-browser", "browsers")
-    : undefined;
-  if (browserRoot && existsSync(browserRoot)) {
-    for (const version of readdirSync(browserRoot).sort().reverse()) {
-      candidates.push(join(browserRoot, version, "chrome.exe"));
-    }
-  }
-  candidates.push(...(process.env.PATH ?? "").split(delimiter).filter(Boolean).map((dir) => join(dir, "chrome.exe")));
-  const chrome = candidates.find((candidate) => existsSync(candidate));
-  if (!chrome) throw new Error("Chrome for Testing was not found; set LAYOUT_TRANSLATE_CHROME");
-  return chrome;
-}
 
 function startFixtureServer() {
   return createServer((request, response) => {
