@@ -144,9 +144,16 @@ Out of scope:
   guessing which text is a proper noun.
 - [x] Send a measured character budget for regions that must keep their box, so
   the provider can shorten to the space that exists.
-- [ ] Give the medium policy a measured bound. Real pages show it allowing
-  changes of `143px` to `269px`, which is permitted by "limited controlled
-  change" only because that phrase has no number behind it.
+- [x] Define what the medium policy actually promises. It is not a pixel budget:
+  a medium region may grow, because pushing content down is ordinary reflow, but
+  it must not spill out of its box, because that is text the reader loses. A
+  medium region whose box was not pinned used to skip the fit check entirely and
+  take the full text whatever happened; it now runs the same compact then
+  ellipsis-plus-tooltip chain as a hard region.
+- [ ] Decide whether a paragraph inside a height-constrained container should
+  keep taking the full text. Soft regions are the only ones still spilling with
+  no fallback, 4 anchors on one page and 2 on another, and the current rule is
+  deliberate rather than accidental.
 - [ ] Reduce the remaining Vietnamese clipping. The budget did not move it: a
   control sized to two or three Japanese characters has no room for any
   accurate English or Vietnamese label, so those anchors correctly fall back to
@@ -568,6 +575,19 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Medium-policy answer, measured rather than chosen: across six real pages the
+  medium regions grew by up to `269px` but only 18 of 2167 of them, `0.8%`,
+  actually overflowed, and no page overflowed horizontally anywhere. A pixel cap
+  would have measured the wrong thing, failing a heading that legitimately wraps
+  to two lines while passing one that is clipped inside a fixed-height card.
+- The audit was also counting the wrong thing. An anchor in the ellipsis
+  fallback is wider than its box on purpose, so it was being reported as an
+  overflow next to genuine spills. Overflow is now split: total, and the ones
+  with no fallback applied. After the medium fix, hard and medium report zero
+  unhandled overflow on both a government page (hard 212/212 boxes held, medium
+  17/17) and a large retailer (hard 594/594, medium 268/311). The only remaining
+  unhandled spills are soft paragraphs, 4 and 2, which take the full text by
+  design.
 - Classification finding, from running seven real pages rather than reasoning
   about markup. On a large retailer, 821 of 1024 anchors classified as unknown
   and only 2 as a hard-policy component, because the page is built from divs and

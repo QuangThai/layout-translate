@@ -779,9 +779,14 @@ export class PageTranslationEngine {
     if (!record.translation || !record.node.isConnected) return;
     this.restorePresentation(record);
     this.preserveHardRegion(record);
-    const mediumRegionPreserved = this.preserveMediumRegion(record);
+    this.preserveMediumRegion(record);
     this.setNodeText(record, record.translation.full);
-    if (record.mode === "soft" || (record.mode === "medium" && !mediumRegionPreserved)) {
+    // A paragraph is meant to reflow, so it keeps the full text whatever it
+    // costs in height. A medium region may also grow, since pushing content
+    // down is ordinary reflow, but it still has to fit: text that spills out of
+    // its own box is text the reader loses. Medium therefore falls through to
+    // the same fit check as a hard region, whether or not its box was pinned.
+    if (record.mode === "soft") {
       record.displayedText = record.translation.full;
       record.fallback = "full";
       return;
@@ -934,7 +939,7 @@ export class PageTranslationEngine {
       // comparison survives the reader having scrolled since.
       const now = measureElement(record.element);
       const before = record.beforeGeometry;
-      const policy = audit.byPolicy[record.mode] ?? { anchors: 0, withinTolerance: 0, boxHeld: 0, maxShiftPx: 0, maxSizeDeltaPx: 0, overflows: 0 };
+      const policy = audit.byPolicy[record.mode] ?? { anchors: 0, withinTolerance: 0, boxHeld: 0, maxShiftPx: 0, maxSizeDeltaPx: 0, overflows: 0, unhandledOverflows: 0 };
       policy.anchors += 1;
       if (before) {
         const shift = Math.hypot(now.documentLeft - before.documentLeft, now.documentTop - before.documentTop);
@@ -946,7 +951,13 @@ export class PageTranslationEngine {
         if (sizeDelta <= PROVISIONAL_SHIFT_TOLERANCE_PX) policy.boxHeld += 1;
         if (sizeDelta > policy.maxSizeDeltaPx) policy.maxSizeDeltaPx = Math.round(sizeDelta * 100) / 100;
       }
-      if (hasOverflow(now)) policy.overflows += 1;
+      if (hasOverflow(now)) {
+        policy.overflows += 1;
+        // An anchor in the ellipsis fallback is meant to be wider than its box:
+        // the text is clipped on purpose and stays reachable through the
+        // tooltip. Spilling with no fallback applied is the real break.
+        if (record.fallback !== "ellipsis-tooltip") policy.unhandledOverflows += 1;
+      }
       audit.byPolicy[record.mode] = policy;
       if (record.fallback === "full") audit.byFallback.full += 1;
       else if (record.fallback === "compact") audit.byFallback.compact += 1;

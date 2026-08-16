@@ -84,7 +84,10 @@ export interface TranslationAudit {
     boxHeld: number;
     maxShiftPx: number;
     maxSizeDeltaPx: number;
+    /** Content wider than its box, including the intended ellipsis fallback. */
     overflows: number;
+    /** Content spilling with no fallback applied: the reader simply loses it. */
+    unhandledOverflows: number;
   }>>;
   tolerancePx: number;
   byFallback: { full: number; compact: number; ellipsisTooltip: number };

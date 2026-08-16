@@ -120,11 +120,12 @@ async function handleMessage(
         // Per policy, because a paragraph is meant to reflow and a navigation
         // item is not; one combined number answers neither question.
         for (const [mode, value] of Object.entries(partial.byPolicy) as Array<[PreserveMode, NonNullable<TranslationAudit["byPolicy"][PreserveMode]>]>) {
-          const totals = audit.byPolicy[mode] ?? { anchors: 0, withinTolerance: 0, boxHeld: 0, maxShiftPx: 0, maxSizeDeltaPx: 0, overflows: 0 };
+          const totals = audit.byPolicy[mode] ?? { anchors: 0, withinTolerance: 0, boxHeld: 0, maxShiftPx: 0, maxSizeDeltaPx: 0, overflows: 0, unhandledOverflows: 0 };
           totals.anchors += value.anchors;
           totals.withinTolerance += value.withinTolerance;
           totals.boxHeld += value.boxHeld;
           totals.overflows += value.overflows;
+          totals.unhandledOverflows += value.unhandledOverflows;
           totals.maxShiftPx = Math.max(totals.maxShiftPx, value.maxShiftPx);
           totals.maxSizeDeltaPx = Math.max(totals.maxSizeDeltaPx, value.maxSizeDeltaPx);
           audit.byPolicy[mode] = totals;

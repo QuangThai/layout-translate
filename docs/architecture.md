@@ -162,7 +162,7 @@ not inferred from translated character count alone:
 | Class | Default constraint |
 |---|---|
 | Navigation, button, tab, badge, table | Hard preserve; prefer compact language before layout change |
-| Form label, heading, card description | Medium preserve; allow limited controlled change |
+| Form label, heading, card description | Medium preserve; may grow, must not spill out of its box |
 | Paragraph/article body | Soft preserve; prioritize readable meaning |
 | Warning, legal, security, financial, destructive action | Semantic-critical; no ambiguous silent shortening |
 
