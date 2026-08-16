@@ -74,6 +74,63 @@
     }
   }, { rootMargin: "80px" }).observe(deferred);
 
+  // A component that keeps its text behind an open shadow boundary, nests a
+  // second component inside it, slots light-DOM content, and adds more text
+  // later.
+  class NestedBadge extends HTMLElement {
+    connectedCallback() {
+      if (this.shadowRoot) return;
+      const shadow = this.attachShadow({ mode: "open" });
+      const badge = document.createElement("span");
+      badge.className = "nested-badge";
+      badge.dataset.probe = "shadow-nested";
+      badge.textContent = "入れ子の部品";
+      shadow.append(badge);
+    }
+  }
+
+  class JpCard extends HTMLElement {
+    connectedCallback() {
+      if (this.shadowRoot) return;
+      const shadow = this.attachShadow({ mode: "open" });
+      const heading = document.createElement("h3");
+      heading.dataset.probe = "shadow-heading";
+      heading.textContent = "部品の見出し";
+      const action = document.createElement("button");
+      action.type = "button";
+      action.dataset.probe = "shadow-action";
+      action.title = "部品の説明";
+      action.textContent = "詳細情報";
+      const nested = document.createElement("jp-badge");
+      const slot = document.createElement("slot");
+      slot.name = "note";
+      shadow.append(heading, action, nested, slot);
+
+      // Appears only after the first render, so it also proves the shadow root
+      // is observed rather than merely walked once.
+      setTimeout(() => {
+        const later = document.createElement("p");
+        later.dataset.probe = "shadow-later";
+        later.textContent = "後から追加";
+        shadow.append(later);
+      }, 2_500);
+    }
+  }
+
+  // Its text cannot be reached at all: a closed root exposes no shadowRoot.
+  class JpClosed extends HTMLElement {
+    connectedCallback() {
+      const shadow = this.attachShadow({ mode: "closed" });
+      const note = document.createElement("p");
+      note.textContent = "閉じた部品";
+      shadow.append(note);
+    }
+  }
+
+  customElements.define("jp-badge", NestedBadge);
+  customElements.define("jp-card", JpCard);
+  customElements.define("jp-closed", JpClosed);
+
   const timers = [];
 
   function startTimers() {

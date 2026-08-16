@@ -246,6 +246,7 @@ export class PageTranslationEngine {
   private readonly presentationStates = new WeakMap<HTMLElement, PresentationState>();
   private readonly ownWriteCounts = new WeakMap<Text, number>();
   private readonly ownAttributeWrites = new WeakMap<HTMLElement, Map<string, number>>();
+  private readonly observedScopes = new WeakSet<ShadowRoot>();
   private readonly memo = new TranslationMemo();
   private readonly attributeRecords = new Map<string, AttributeRecord>();
   private readonly attributeRecordsByElement = new WeakMap<HTMLElement, Map<string, AttributeRecord>>();
@@ -465,7 +466,8 @@ export class PageTranslationEngine {
       if (!record.element.isConnected) this.removeAttributeRecord(record);
     }
 
-    for (const element of this.root.querySelectorAll<HTMLElement>(TRANSLATABLE_ATTRIBUTE_SELECTOR)) {
+    const scopes = this.translationScopes();
+    for (const element of scopes.flatMap((scope) => [...scope.querySelectorAll<HTMLElement>(TRANSLATABLE_ATTRIBUTE_SELECTOR)])) {
       if (!isVisible(element) || isTranslationOptedOut(element)) continue;
       const owned = this.presentationStates.get(element);
       for (const attribute of TRANSLATABLE_ATTRIBUTES) {
@@ -605,17 +607,59 @@ export class PageTranslationEngine {
       && this.targetLanguage === requestedLanguage;
   }
 
+  /**
+   * Every tree that can hold visible text: the document plus each open shadow
+   * root reachable from it, however deeply nested.
+   *
+   * A `TreeWalker` and a `MutationObserver` both stop at a shadow boundary, so
+   * a web component's text is otherwise invisible to this engine and silently
+   * stays in the source language. Each root is also observed, once, so content
+   * appearing inside a component is treated like any other new content.
+   *
+   * A closed shadow root exposes no `shadowRoot`, so its text cannot be reached
+   * at all. That is a limit of the platform, not something to work around.
+   */
+  private translationScopes(): Array<HTMLElement | ShadowRoot> {
+    const scopes: Array<HTMLElement | ShadowRoot> = [];
+    if (this.root.body) scopes.push(this.root.body);
+    for (let index = 0; index < scopes.length; index += 1) {
+      const scope = scopes[index];
+      if (!scope) continue;
+      for (const element of scope.querySelectorAll<HTMLElement>("*")) {
+        const shadow = element.shadowRoot;
+        if (!shadow) continue;
+        scopes.push(shadow);
+        this.observeScope(shadow);
+      }
+    }
+    return scopes;
+  }
+
+  private observeScope(scope: ShadowRoot): void {
+    if (!this.observer || this.observedScopes.has(scope)) return;
+    this.observedScopes.add(scope);
+    this.observer.observe(scope, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: [...TRANSLATABLE_ATTRIBUTES],
+    });
+  }
+
   private async collectRecords(): Promise<SourceLanguage> {
     for (const record of [...this.records.values()]) {
       if (!record.node.isConnected || !record.element.isConnected) this.removeRecord(record);
     }
 
-    const walker = this.root.createTreeWalker(this.root.body, NodeFilter.SHOW_TEXT);
     const nodes: Text[] = [];
-    let current: Node | null = walker.nextNode();
-    while (current) {
-      if (current.nodeType === Node.TEXT_NODE) nodes.push(current as Text);
-      current = walker.nextNode();
+    for (const scope of this.translationScopes()) {
+      const walker = this.root.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+      let current: Node | null = walker.nextNode();
+      while (current) {
+        if (current.nodeType === Node.TEXT_NODE) nodes.push(current as Text);
+        current = walker.nextNode();
+      }
     }
 
     const contexts = nodes.map((node) => {

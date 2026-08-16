@@ -26,7 +26,9 @@ the extension runtime and reads durable extension state.
 
 Owns page-facing behavior:
 
-- supported DOM text extraction;
+- supported DOM text extraction across the document and every open shadow root,
+  since a tree walker and a mutation observer both stop at a shadow boundary and
+  a closed root cannot be reached at all;
 - visible attribute text (`placeholder`, `alt`, `title`, `aria-label`), which a
   text-node walk cannot see and which leaves a form half translated when
   skipped;

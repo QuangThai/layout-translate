@@ -60,6 +60,15 @@
         <div class="deferred" data-deferred></div>
       </section>
 
+      <!-- Text inside web components. A TreeWalker and a MutationObserver both
+           stop at a shadow boundary, so this content is invisible unless every
+           open shadow root is walked and observed in its own right. -->
+      <section class="component-panel" aria-labelledby="component-heading">
+        <h2 id="component-heading">部品一覧</h2>
+        <jp-card data-probe="shadow-open"><span slot="note">補足説明</span></jp-card>
+        <jp-closed data-probe="shadow-closed"></jp-closed>
+      </section>
+
       <!-- Strings that live in attributes rather than text nodes. A form whose
            labels are translated but whose placeholders are not is half usable. -->
       <section class="form-panel" aria-labelledby="form-heading">

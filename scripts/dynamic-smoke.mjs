@@ -52,6 +52,12 @@ const TRANSLATIONS = {
   "山田 太郎": { en: "Taro Yamada", vi: "Nguyễn Văn A" },
   会社のロゴ: { en: "Company logo", vi: "Logo công ty" },
   送信の確認: { en: "Confirm before sending", vi: "Xác nhận trước khi gửi" },
+  部品一覧: { en: "Components", vi: "Thành phần" },
+  部品の見出し: { en: "Component heading", vi: "Tiêu đề thành phần" },
+  入れ子の部品: { en: "Nested component", vi: "Thành phần lồng nhau" },
+  部品の説明: { en: "About this component", vi: "Giới thiệu thành phần" },
+  後から追加: { en: "Added later", vi: "Thêm sau" },
+  閉じた部品: { en: "Closed component", vi: "Thành phần đóng" },
 };
 
 // Proves the assertions can fail: with translations withheld the page stays
@@ -273,6 +279,49 @@ async function main() {
     check("image alt text is translated", attributes.logoAlt === expectation("会社のロゴ", "en"), attributes.logoAlt);
     check("page-owned title is translated", attributes.buttonTitle === expectation("送信の確認", "en"), attributes.buttonTitle);
     report.phases.attributes = { provider: since(attributeMark), values: attributes };
+
+    // 1c. Text behind a shadow boundary, including a nested component, slotted
+    // light DOM, and content the component adds after its first render.
+    const shadowMark = mark();
+    const readShadow = () => page.evaluate(() => {
+      const card = document.querySelector("[data-probe='shadow-open']");
+      const shadow = card?.shadowRoot ?? null;
+      const nested = shadow?.querySelector("jp-badge")?.shadowRoot ?? null;
+      const closed = document.querySelector("[data-probe='shadow-closed']");
+      return {
+        openReachable: Boolean(shadow),
+        heading: shadow?.querySelector("[data-probe='shadow-heading']")?.textContent?.trim() ?? null,
+        action: shadow?.querySelector("[data-probe='shadow-action']")?.textContent?.trim() ?? null,
+        actionTitle: shadow?.querySelector("[data-probe='shadow-action']")?.getAttribute("title") ?? null,
+        nested: nested?.querySelector("[data-probe='shadow-nested']")?.textContent?.trim() ?? null,
+        later: shadow?.querySelector("[data-probe='shadow-later']")?.textContent?.trim() ?? null,
+        slotted: card?.querySelector("[slot='note']")?.textContent?.trim() ?? null,
+        closedReachable: Boolean(closed?.shadowRoot),
+        closedText: closed?.textContent?.trim() ?? "",
+      };
+    });
+    const shadowDeadline = Date.now() + 25_000;
+    let shadow = await readShadow();
+    while (Date.now() < shadowDeadline) {
+      shadow = await readShadow();
+      if (shadow.heading && shadow.nested && shadow.later
+        && ![shadow.heading, shadow.action, shadow.actionTitle, shadow.nested, shadow.later, shadow.slotted]
+          .some((value) => JAPANESE.test(value ?? ""))) break;
+      await sleep(400);
+    }
+    check("text inside an open shadow root is translated", shadow.heading === expectation("部品の見出し", "en"), shadow.heading);
+    check("nested shadow roots are reached too", shadow.nested === expectation("入れ子の部品", "en"), shadow.nested);
+    check("attributes inside a shadow root are translated", shadow.actionTitle === expectation("部品の説明", "en"), shadow.actionTitle);
+    check("slotted light DOM is translated", shadow.slotted === expectation("補足説明", "en"), shadow.slotted);
+    check(
+      "content a component adds after first render is translated",
+      shadow.later === expectation("後から追加", "en"),
+      shadow.later,
+    );
+    // Recorded as a platform limit rather than a bug: a closed root exposes no
+    // shadowRoot, so its text cannot be reached by anything, including us.
+    check("a closed shadow root stays unreachable", shadow.closedReachable === false, String(shadow.closedReachable));
+    report.phases.shadow = { provider: since(shadowMark), values: shadow };
 
     // 2. Content appended while scrolling.
     const scrollMark = mark();

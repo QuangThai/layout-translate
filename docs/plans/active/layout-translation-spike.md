@@ -166,6 +166,11 @@ Out of scope:
   the site keeps rewriting, recycled list rows, and a continuous animation.
   `npm run dynamic:smoke` drives all of them offline against the mock backend,
   and `--negative-control` proves the assertions can fail.
+- [x] Reach text behind a shadow boundary. Every open shadow root, however
+  deeply nested, is walked and observed in its own right, so web component text,
+  its attributes, its slotted light DOM, and content it adds after first render
+  are all translated. A closed root exposes no `shadowRoot` and stays
+  unreachable; that is a platform limit, recorded rather than worked around.
 - [x] Translate the visible strings that live in attributes rather than text
   nodes: `placeholder`, `alt`, `title`, and `aria-label`. Values the page also
   uses as machine data are left alone, restore returns the original values, and
@@ -527,6 +532,14 @@ Out of scope:
   unchanged geometry, `npm run backend:smoke` passed, and the live-site run kept
   every measured anchor shift at restore back to `0px`.
 
+- Shadow-boundary proof: the dynamic fixture now hosts a component whose text
+  lives in an open shadow root, containing a second component with its own
+  shadow root, a slotted light-DOM node, an attribute, and a paragraph the
+  component appends 2.5 seconds after its first render. All five are translated
+  and the late paragraph proves the shadow root is observed rather than walked
+  once. A sibling component with a closed root stays unreachable, which the run
+  asserts so the limit would be noticed if it ever changed. The negative control
+  turns fourteen assertions red, five of them these.
 - Attribute-text gap, found by measuring the live page rather than guessing: it
   carried five Japanese strings that a text-node walk cannot see, three form
   placeholders and two image `alt` values. The contact form therefore had
